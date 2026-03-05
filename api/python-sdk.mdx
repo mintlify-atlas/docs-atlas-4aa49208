@@ -1,0 +1,413 @@
+---
+title: 'Python SDK'
+description: 'Unity Catalog Python client library reference'
+---
+
+# Python SDK
+
+The Unity Catalog Python SDK provides a comprehensive client library for interacting with Unity Catalog APIs.
+
+## Installation
+
+Install the Unity Catalog Python client using pip:
+
+```bash
+pip install unitycatalog-client
+```
+
+The package is published to PyPI: https://pypi.org/project/unitycatalog-client/
+
+## Quick Start
+
+### Basic Setup
+
+```python
+from unitycatalog.client import ApiClient, Configuration
+from unitycatalog.client.api import CatalogsApi, SchemasApi, TablesApi
+
+# Configure the API client
+configuration = Configuration(
+    host="http://localhost:8080/api/2.1/unity-catalog"
+)
+
+# Set authentication token
+configuration.access_token = "YOUR_ACCESS_TOKEN"
+
+# Create API client
+api_client = ApiClient(configuration)
+
+# Initialize API instances
+catalogs_api = CatalogsApi(api_client)
+schemas_api = SchemasApi(api_client)
+tables_api = TablesApi(api_client)
+```
+
+## Working with Catalogs
+
+### List Catalogs
+
+```python
+import asyncio
+from unitycatalog.client.api import CatalogsApi
+
+async def list_catalogs():
+    response = await catalogs_api.list_catalogs()
+    for catalog in response.catalogs:
+        print(f"Catalog: {catalog.name}")
+        print(f"  ID: {catalog.id}")
+        print(f"  Created: {catalog.created_at}")
+
+# Run the async function
+asyncio.run(list_catalogs())
+```
+
+### Create a Catalog
+
+```python
+from unitycatalog.client import CreateCatalog
+
+async def create_catalog():
+    catalog_info = await catalogs_api.create_catalog(
+        CreateCatalog(
+            name="my_catalog",
+            comment="My first catalog",
+            properties={"team": "data-engineering"}
+        )
+    )
+    print(f"Created catalog: {catalog_info.name}")
+    return catalog_info
+```
+
+### Get Catalog Details
+
+```python
+async def get_catalog(name: str):
+    catalog_info = await catalogs_api.get_catalog(name)
+    print(f"Catalog: {catalog_info.name}")
+    print(f"Owner: {catalog_info.owner}")
+    print(f"Comment: {catalog_info.comment}")
+    return catalog_info
+```
+
+### Update a Catalog
+
+```python
+from unitycatalog.client import UpdateCatalog
+
+async def update_catalog(name: str):
+    updated = await catalogs_api.update_catalog(
+        name,
+        UpdateCatalog(
+            comment="Updated catalog description",
+            new_name="renamed_catalog"
+        )
+    )
+    return updated
+```
+
+### Delete a Catalog
+
+```python
+async def delete_catalog(name: str):
+    await catalogs_api.delete_catalog(name, force=False)
+    print(f"Deleted catalog: {name}")
+```
+
+## Working with Schemas
+
+### Create a Schema
+
+```python
+from unitycatalog.client import CreateSchema
+
+async def create_schema():
+    schema_info = await schemas_api.create_schema(
+        CreateSchema(
+            name="my_schema",
+            catalog_name="my_catalog",
+            comment="My first schema",
+            properties={"environment": "production"}
+        )
+    )
+    print(f"Created schema: {schema_info.full_name}")
+    return schema_info
+```
+
+### List Schemas
+
+```python
+async def list_schemas(catalog_name: str):
+    response = await schemas_api.list_schemas(
+        catalog_name=catalog_name,
+        max_results=100
+    )
+    for schema in response.schemas:
+        print(f"Schema: {schema.full_name}")
+    return response
+```
+
+## Working with Tables
+
+### Create a Table
+
+```python
+from unitycatalog.client import (
+    CreateTable,
+    ColumnInfo,
+    ColumnTypeName,
+    TableType,
+    DataSourceFormat
+)
+
+async def create_table():
+    table_info = await tables_api.create_table(
+        CreateTable(
+            name="users",
+            catalog_name="my_catalog",
+            schema_name="my_schema",
+            table_type=TableType.EXTERNAL,
+            data_source_format=DataSourceFormat.DELTA,
+            columns=[
+                ColumnInfo(
+                    name="user_id",
+                    type_text="int",
+                    type_name=ColumnTypeName.INT,
+                    type_json='{"name":"user_id","type":"integer"}',
+                    position=0,
+                    nullable=False,
+                    comment="User identifier"
+                ),
+                ColumnInfo(
+                    name="username",
+                    type_text="string",
+                    type_name=ColumnTypeName.STRING,
+                    type_json='{"name":"username","type":"string"}',
+                    position=1,
+                    nullable=False
+                ),
+                ColumnInfo(
+                    name="created_at",
+                    type_text="timestamp",
+                    type_name=ColumnTypeName.TIMESTAMP,
+                    type_json='{"name":"created_at","type":"timestamp"}',
+                    position=2
+                )
+            ],
+            storage_location="s3://my-bucket/users",
+            comment="User data table"
+        )
+    )
+    print(f"Created table: {table_info.name}")
+    return table_info
+```
+
+### Get Table Details
+
+```python
+async def get_table(full_name: str):
+    table_info = await tables_api.get_table(full_name)
+    
+    print(f"Table: {table_info.name}")
+    print(f"Type: {table_info.table_type}")
+    print(f"Format: {table_info.data_source_format}")
+    print(f"Storage: {table_info.storage_location}")
+    
+    print("\nColumns:")
+    for column in table_info.columns:
+        nullable = "NULL" if column.nullable else "NOT NULL"
+        print(f"  {column.name}: {column.type_text} {nullable}")
+    
+    return table_info
+```
+
+### List Tables
+
+```python
+async def list_tables(catalog_name: str, schema_name: str):
+    response = await tables_api.list_tables(
+        catalog_name=catalog_name,
+        schema_name=schema_name
+    )
+    
+    for table in response.tables:
+        print(f"{table.name} ({table.table_type})")
+    
+    return response
+```
+
+### Delete a Table
+
+```python
+async def delete_table(full_name: str):
+    await tables_api.delete_table(full_name)
+    print(f"Deleted table: {full_name}")
+```
+
+## Working with Volumes
+
+### Create a Volume
+
+```python
+from unitycatalog.client import CreateVolumeRequestContent, VolumeType
+
+async def create_volume():
+    volume_info = await volumes_api.create_volume(
+        CreateVolumeRequestContent(
+            catalog_name="my_catalog",
+            schema_name="my_schema",
+            name="my_volume",
+            volume_type=VolumeType.EXTERNAL,
+            storage_location="s3://my-bucket/volume",
+            comment="External volume for files"
+        )
+    )
+    return volume_info
+```
+
+## Error Handling
+
+```python
+from unitycatalog.client.exceptions import ApiException
+
+async def safe_get_catalog(name: str):
+    try:
+        catalog = await catalogs_api.get_catalog(name)
+        return catalog
+    except ApiException as e:
+        if e.status == 404:
+            print(f"Catalog {name} not found")
+        elif e.status == 401:
+            print("Authentication failed")
+        elif e.status == 403:
+            print("Permission denied")
+        else:
+            print(f"API error: {e.status} - {e.reason}")
+        raise
+```
+
+## Pagination
+
+```python
+async def list_all_catalogs():
+    all_catalogs = []
+    page_token = None
+    
+    while True:
+        response = await catalogs_api.list_catalogs(
+            max_results=10,
+            page_token=page_token
+        )
+        
+        all_catalogs.extend(response.catalogs)
+        
+        if not response.next_page_token:
+            break
+        
+        page_token = response.next_page_token
+    
+    return all_catalogs
+```
+
+## Complete Example
+
+Here's a complete example that demonstrates the typical workflow:
+
+```python
+import asyncio
+from unitycatalog.client import (
+    ApiClient,
+    Configuration,
+    CreateCatalog,
+    CreateSchema,
+    CreateTable,
+    ColumnInfo,
+    ColumnTypeName,
+    TableType,
+    DataSourceFormat
+)
+from unitycatalog.client.api import CatalogsApi, SchemasApi, TablesApi
+
+async def main():
+    # Setup
+    configuration = Configuration(
+        host="http://localhost:8080/api/2.1/unity-catalog",
+        access_token="YOUR_TOKEN"
+    )
+    api_client = ApiClient(configuration)
+    
+    catalogs_api = CatalogsApi(api_client)
+    schemas_api = SchemasApi(api_client)
+    tables_api = TablesApi(api_client)
+    
+    # Create catalog
+    catalog = await catalogs_api.create_catalog(
+        CreateCatalog(name="analytics", comment="Analytics catalog")
+    )
+    print(f"Created catalog: {catalog.name}")
+    
+    # Create schema
+    schema = await schemas_api.create_schema(
+        CreateSchema(
+            name="production",
+            catalog_name="analytics",
+            comment="Production schema"
+        )
+    )
+    print(f"Created schema: {schema.full_name}")
+    
+    # Create table
+    table = await tables_api.create_table(
+        CreateTable(
+            name="events",
+            catalog_name="analytics",
+            schema_name="production",
+            table_type=TableType.EXTERNAL,
+            data_source_format=DataSourceFormat.DELTA,
+            columns=[
+                ColumnInfo(
+                    name="event_id",
+                    type_text="string",
+                    type_name=ColumnTypeName.STRING,
+                    type_json='{"name":"event_id","type":"string"}',
+                    position=0
+                ),
+                ColumnInfo(
+                    name="timestamp",
+                    type_text="timestamp",
+                    type_name=ColumnTypeName.TIMESTAMP,
+                    type_json='{"name":"timestamp","type":"timestamp"}',
+                    position=1
+                )
+            ],
+            storage_location="s3://my-bucket/events"
+        )
+    )
+    print(f"Created table: {table.name}")
+    
+    # List all tables
+    tables_response = await tables_api.list_tables(
+        catalog_name="analytics",
+        schema_name="production"
+    )
+    print(f"Total tables: {len(tables_response.tables)}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## API Reference
+
+For complete API documentation, see:
+
+- [REST API Reference](/api/rest/catalogs)
+- [GitHub Repository](https://github.com/unitycatalog/unitycatalog)
+- [PyPI Package](https://pypi.org/project/unitycatalog-client/)
+
+## Testing
+
+The Python SDK includes comprehensive tests. To run tests:
+
+```bash
+pip install pytest
+pytest tests/
+```

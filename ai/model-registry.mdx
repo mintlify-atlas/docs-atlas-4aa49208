@@ -1,0 +1,485 @@
+---
+title: Model Registry
+description: Store and manage ML models with Unity Catalog's integrated model registry
+---
+
+# Model Registry
+
+Unity Catalog provides a comprehensive model registry for storing, versioning, and governing machine learning models. This guide covers how to register models, manage versions, and integrate with MLflow for end-to-end ML workflows.
+
+## Overview
+
+The Unity Catalog model registry enables you to:
+
+- **Store ML Models**: Register models from training runs with metadata and artifacts
+- **Version Management**: Track multiple versions of models with lineage information
+- **Governance**: Apply access controls and audit trails to ML artifacts
+- **MLflow Integration**: Seamless integration with MLflow for tracking and deployment
+- **Three-Level Namespace**: Organize models using `catalog.schema.model` hierarchy
+
+## Key Concepts
+
+### Registered Models
+
+**Registered Models** are logical containers for ML models within Unity Catalog. A registered model represents a specific ML use case or application and can contain multiple versions.
+
+Properties:
+- Name and full three-part namespace
+- Storage location for model artifacts
+- Metadata (creation time, owner, comments)
+- Unique model ID
+
+### Model Versions
+
+**Model Versions** represent different iterations of a registered model. Each version captures:
+- Source location of the model artifacts
+- Run ID from the training run (MLflow integration)
+- Status (pending, ready, failed)
+- Version number (auto-incremented)
+- Metadata and comments
+
+## Unity Catalog and MLflow Integration
+
+Unity Catalog works seamlessly with MLflow to provide end-to-end ML model management:
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  MLflow Client  │────▶│  MLflow Server  │     │  Unity Catalog  │
+│                 │     │   (port 5000)   │     │   (port 8080)   │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+         │                      │                       │
+         │  1. Track metrics    │                       │
+         │─────────────────────▶│                       │
+         │                      │                       │
+         │  2. Log model        │                       │
+         │─────────────────────▶│                       │
+         │                      │                       │
+         │  3. Register model   │                       │
+         │──────────────────────────────────────────────▶│
+         │                      │                       │
+```
+
+1. **Training runs** and metrics are stored in MLflow
+2. **Model artifacts** from runs are logged to MLflow
+3. **Model registration** stores governance metadata in Unity Catalog
+
+## Setup
+
+### Prerequisites
+
+<Note>
+  Ensure you have MLflow version >= 2.16.1 and Unity Catalog >= 0.2 for proper integration.
+</Note>
+
+### Start Unity Catalog Server
+
+```bash
+bin/start-uc-server
+```
+
+### Install and Start MLflow
+
+```bash
+pip install mlflow
+mlflow ui
+```
+
+The MLflow UI will start at `http://127.0.0.1:5000`.
+
+### Configure MLflow Client
+
+```python
+import mlflow
+
+# Set MLflow tracking server for metrics and models
+mlflow.set_tracking_uri("http://127.0.0.1:5000")
+
+# Set Unity Catalog as model registry
+mlflow.set_registry_uri("uc:http://127.0.0.1:8080")
+```
+
+<Note>
+  The `uc:` prefix in the registry URI tells MLflow to use Unity Catalog as the model registry.
+</Note>
+
+## Registering Models
+
+### Train and Register a Model
+
+Here's a complete example training and registering a scikit-learn model:
+
+```python
+import mlflow
+import mlflow.sklearn
+from sklearn import datasets
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+import pandas as pd
+
+# Configure MLflow
+mlflow.set_tracking_uri("http://127.0.0.1:5000")
+mlflow.set_registry_uri("uc:http://127.0.0.1:8080")
+
+# Load and split data
+X, y = datasets.load_iris(return_X_y=True, as_frame=True)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+with mlflow.start_run():
+    # Train a sklearn model
+    clf = RandomForestClassifier(max_depth=7)
+    clf.fit(X_train, y_train)
+    
+    # Take first row as model input example
+    input_example = X_train.iloc[[0]]
+    
+    # Log and register the model
+    mlflow.sklearn.log_model(
+        sk_model=clf,
+        artifact_path="model",
+        input_example=input_example,
+        registered_model_name="unity.default.iris"
+    )
+```
+
+Output:
+```
+Successfully registered model 'unity.default.iris'.
+Created version '1' of model 'unity.default.iris'.
+```
+
+### Understanding the Three-Part Namespace
+
+Models follow Unity Catalog's three-level hierarchy:
+
+```
+catalog.schema.model
+   │      │      └─── Model name (e.g., iris)
+   │      └────────── Schema name (e.g., default)
+   └───────────────── Catalog name (e.g., unity)
+```
+
+This hierarchy enables:
+- Organized model storage by project or team
+- Granular access control at catalog, schema, or model level
+- Consistent governance across data and AI assets
+
+## Loading Models
+
+Load a registered model for inference:
+
+```python
+import mlflow
+import mlflow.pyfunc
+from sklearn import datasets
+import pandas as pd
+
+# Configure registry
+mlflow.set_tracking_uri("http://127.0.0.1:5000")
+mlflow.set_registry_uri("uc:http://127.0.0.1:8080")
+
+# Load test data
+X, y = datasets.load_iris(return_X_y=True, as_frame=True)
+_, X_test, _, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Load model (version 1)
+loaded_model = mlflow.pyfunc.load_model("models:/unity.default.iris/1")
+
+# Make predictions
+predictions = loaded_model.predict(X_test)
+
+# Display results
+result = pd.DataFrame(X_test)
+result["actual_class"] = y_test
+result["predicted_class"] = predictions
+print(result[:4])
+```
+
+Output:
+```
+   sepal length  sepal width  petal length  petal width  actual  predicted
+0           6.1          2.8           4.7          1.2       1          1
+1           5.7          3.8           1.7          0.3       0          0
+2           7.7          2.6           6.9          2.3       2          2
+3           6.0          2.9           4.5          1.5       1          1
+```
+
+## Managing Models via CLI
+
+### List Registered Models
+
+```bash
+bin/uc registered_model list --catalog unity --schema default
+```
+
+Output:
+```
+┌─────────┬──────────────┬─────────────┬──────────────────┬───────────────────┐
+│  NAME   │ CATALOG_NAME │ SCHEMA_NAME │   FULL_NAME      │     MODEL_ID      │
+├─────────┼──────────────┼─────────────┼──────────────────┼───────────────────┤
+│ iris    │ unity        │ default     │ unity.default... │ 2ea060a1-2315-... │
+└─────────┴──────────────┴─────────────┴──────────────────┴───────────────────┘
+```
+
+### List Model Versions
+
+```bash
+bin/uc model_version list --full_name unity.default.iris
+```
+
+Output:
+```
+┌────────────┬──────────┬─────────┬────────────┬──────────────────────┐
+│ MODEL_NAME │ VERSION  │ STATUS  │ CREATED_AT │ MODEL_VERSION_ID     │
+├────────────┼──────────┼─────────┼────────────┼──────────────────────┤
+│ iris       │ 1        │ READY   │ 1725847... │ a61c624f-206a-419... │
+└────────────┴──────────┴─────────┴────────────┴──────────────────────┘
+```
+
+### Get Model Metadata
+
+```bash
+bin/uc registered_model get --full_name unity.default.iris
+```
+
+### Get Model Version Metadata
+
+```bash
+bin/uc model_version get --full_name unity.default.iris --version 1
+```
+
+### Update Model Metadata
+
+Update the name or comment of a registered model:
+
+```bash
+bin/uc registered_model update \
+  --full_name unity.default.iris \
+  --new_name iris_v2 \
+  --comment "Production iris classifier"
+```
+
+Update model version comment:
+
+```bash
+bin/uc model_version update \
+  --full_name unity.default.iris \
+  --version 1 \
+  --comment "Initial production version"
+```
+
+## Managing Models via REST API
+
+### List Models
+
+```python
+import requests
+
+BASE_URL = "http://localhost:8080/api/2.1/unity-catalog"
+URL = f"{BASE_URL}/models"
+
+params = {
+    "catalog_name": "unity",
+    "schema_name": "default"
+}
+
+response = requests.get(URL, params=params)
+models = response.json()
+```
+
+### Get Model Metadata
+
+```python
+URL = f"{BASE_URL}/models/unity.default.iris"
+response = requests.get(URL)
+metadata = response.json()
+```
+
+### Delete Model
+
+```python
+URL = f"{BASE_URL}/models/unity.default.old_model"
+response = requests.delete(URL)
+```
+
+## Model Versioning
+
+### Creating New Versions
+
+Each time you register a model with the same name, a new version is created:
+
+```python
+with mlflow.start_run():
+    # Train improved model
+    clf = RandomForestClassifier(max_depth=10, n_estimators=200)
+    clf.fit(X_train, y_train)
+    
+    # Register as new version
+    mlflow.sklearn.log_model(
+        sk_model=clf,
+        artifact_path="model",
+        registered_model_name="unity.default.iris"  # Same name = new version
+    )
+```
+
+Output:
+```
+Created version '2' of model 'unity.default.iris'.
+```
+
+### Loading Specific Versions
+
+```python
+# Load latest version
+latest = mlflow.pyfunc.load_model("models:/unity.default.iris/latest")
+
+# Load specific version
+v1 = mlflow.pyfunc.load_model("models:/unity.default.iris/1")
+v2 = mlflow.pyfunc.load_model("models:/unity.default.iris/2")
+```
+
+## Model Storage and Artifacts
+
+### Storage Location
+
+Models are stored in Unity Catalog's managed storage:
+
+```
+file:/tmp/ucroot/{catalog_id}/{schema_id}/models/{model_id}/versions/{version_id}
+```
+
+### Accessing Model Artifacts
+
+Model artifacts include:
+- Serialized model files (pickle, joblib, etc.)
+- Model signature and input/output schema
+- Environment dependencies (conda.yaml, requirements.txt)
+- Input examples
+- Custom metadata
+
+## Best Practices
+
+<Note>
+  Follow these practices for effective model management:
+</Note>
+
+### 1. Descriptive Naming
+
+Use clear, descriptive names that indicate the model's purpose:
+
+```python
+# Good
+"unity.production.customer_churn_predictor"
+"unity.experiments.sentiment_classifier_v3"
+
+# Avoid
+"unity.default.model1"
+"unity.test.my_model"
+```
+
+### 2. Version Comments
+
+Add meaningful comments to versions:
+
+```bash
+bin/uc model_version update \
+  --full_name unity.production.churn_predictor \
+  --version 3 \
+  --comment "Improved accuracy by 5% using feature engineering on customer tenure"
+```
+
+### 3. Organize by Environment
+
+Use schemas to separate environments:
+
+```
+unity.development.iris    # Development models
+unity.staging.iris        # Staging/testing models  
+unity.production.iris     # Production models
+```
+
+### 4. Track Metadata
+
+Log comprehensive metadata with MLflow:
+
+```python
+with mlflow.start_run():
+    # Log parameters
+    mlflow.log_param("max_depth", 7)
+    mlflow.log_param("n_estimators", 100)
+    
+    # Log metrics
+    mlflow.log_metric("accuracy", 0.95)
+    mlflow.log_metric("f1_score", 0.94)
+    
+    # Train and register
+    clf.fit(X_train, y_train)
+    mlflow.sklearn.log_model(
+        sk_model=clf,
+        artifact_path="model",
+        registered_model_name="unity.default.iris"
+    )
+```
+
+### 5. Access Control
+
+Leverage Unity Catalog's governance:
+
+- Grant read access to data scientists for development models
+- Restrict write access to production schemas
+- Use audit logs to track model access and usage
+- Apply data lineage to understand dependencies
+
+## Integration with GenAI Functions
+
+Combine model registry with function calling for powerful AI applications:
+
+```python
+def predict_iris_class(
+    sepal_length: float,
+    sepal_width: float,
+    petal_length: float,
+    petal_width: float
+) -> int:
+    """
+    Predict iris flower class using registered ML model.
+
+    Args:
+        sepal_length: Sepal length in cm.
+        sepal_width: Sepal width in cm.
+        petal_length: Petal length in cm.
+        petal_width: Petal width in cm.
+
+    Returns:
+        int: Predicted class (0=setosa, 1=versicolor, 2=virginica).
+    """
+    import mlflow
+    import pandas as pd
+    
+    mlflow.set_registry_uri("uc:http://127.0.0.1:8080")
+    model = mlflow.pyfunc.load_model("models:/unity.default.iris/latest")
+    
+    input_data = pd.DataFrame([[
+        sepal_length, sepal_width, petal_length, petal_width
+    ]], columns=['sepal length', 'sepal width', 'petal length', 'petal width'])
+    
+    prediction = model.predict(input_data)
+    return int(prediction[0])
+
+# Register as UC function
+client.create_python_function(
+    func=predict_iris_class,
+    catalog="tools",
+    schema="ml_inference"
+)
+```
+
+Now GenAI agents can invoke the ML model through a governed UC function!
+
+## Next Steps
+
+- [Function Calling](/ai/function-calling): Create functions that use registered models
+- [Client Setup](/ai/client-setup): Configure clients for model registry access
+- [MLflow Documentation](https://mlflow.org/docs): Learn more about MLflow capabilities
+- [Unity Catalog UI](/introduction#interact-with-the-unity-catalog-ui): Visualize models in the Unity Catalog UI

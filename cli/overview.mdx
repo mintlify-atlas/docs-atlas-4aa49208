@@ -1,0 +1,182 @@
+---
+title: 'CLI Overview'
+description: 'Introduction to the Unity Catalog command-line interface'
+---
+
+## Introduction
+
+The Unity Catalog CLI (`bin/uc`) is a command-line tool that allows you to interact with a Unity Catalog server to create and manage catalogs, schemas, tables, volumes, functions, and ML models.
+
+The CLI provides a simple and powerful way to:
+- Manage metadata for data assets
+- Create and configure catalogs, schemas, and tables
+- Work with unstructured data in volumes
+- Register and invoke functions
+- List and inspect ML models
+- Control catalog server configuration
+
+## Installation
+
+The CLI is included with Unity Catalog. It can be run from:
+
+1. **Source code**: If you've cloned the Unity Catalog repository, the CLI will automatically build and run from source
+2. **Tarball distribution**: If you've downloaded a release tarball, the CLI runs from pre-built JARs
+
+No additional installation is required - the `bin/uc` script handles all dependencies automatically.
+
+## Basic Usage
+
+The general syntax for Unity Catalog CLI commands is:
+
+```bash
+bin/uc [global_options] <entity> <operation> [options]
+```
+
+Where:
+- `entity` is the type of object (catalog, schema, table, volume, function, etc.)
+- `operation` is the action to perform (list, get, create, update, delete, etc.)
+- `options` are specific parameters for the operation
+
+### Example Commands
+
+<CodeGroup>
+```bash List catalogs
+bin/uc catalog list
+```
+
+```bash Get a schema
+bin/uc schema get --full_name my_catalog.my_schema
+```
+
+```bash Create a table
+bin/uc table create \
+  --full_name my_catalog.my_schema.my_table \
+  --columns "id INT, name STRING" \
+  --storage_location "/path/to/storage"
+```
+</CodeGroup>
+
+## Global Options
+
+The following options can be used with any CLI command:
+
+<ParamField path="--server" type="string">
+  The URL of the Unity Catalog server. Default is `http://localhost:8080`.
+</ParamField>
+
+<ParamField path="--auth_token" type="string">
+  Personal Authorization Token (PAT) for authenticated access. Required when authentication is enabled.
+</ParamField>
+
+<ParamField path="--output" type="string">
+  Output format preference. Supported values:
+  - `json`: Compact JSON output
+  - `jsonPretty`: Pretty-printed JSON output
+  - Default: Formatted table output
+</ParamField>
+
+## Authentication
+
+If your Unity Catalog server has authentication enabled, you must provide an authentication token with each command:
+
+```bash
+bin/uc --auth_token $TOKEN catalog list
+```
+
+Where `$TOKEN` is the authentication token provided by your identity provider.
+
+### Configuration File
+
+You can also configure server and authentication settings in the CLI configuration file at:
+
+```
+examples/cli/src/main/resources/application.properties
+```
+
+Set the following properties:
+- `server`: The URL of the Unity Catalog server
+- `auth_token`: Your PAT token
+
+<Note>
+CLI parameters take precedence over configuration file settings.
+</Note>
+
+## Server Configuration
+
+By default, the CLI connects to a local Unity Catalog server at `http://localhost:8080`.
+
+To connect to a different server:
+
+<CodeGroup>
+```bash Using CLI parameter
+bin/uc --server https://my-uc-server.com catalog list
+```
+
+```bash Using environment and auth
+bin/uc --server https://my-uc-server.com \
+  --auth_token $TOKEN \
+  catalog list
+```
+</CodeGroup>
+
+## Common Patterns
+
+### Full Names
+
+Many CLI commands use "full names" to identify resources. The format varies by entity type:
+
+- **Catalog**: `catalog_name`
+- **Schema**: `catalog_name.schema_name`
+- **Table**: `catalog_name.schema_name.table_name`
+- **Volume**: `catalog_name.schema_name.volume_name`
+- **Function**: `catalog_name.schema_name.function_name`
+- **Model**: `catalog_name.schema_name.model_name`
+
+### JSON Properties
+
+When specifying properties in JSON format, use single quotes around the JSON and double quotes inside:
+
+```bash
+bin/uc catalog create \
+  --name my_catalog \
+  --properties '{"key1": "value1", "key2": "value2"}'
+```
+
+### Pagination
+
+Many list operations support a `--max_results` parameter to limit the number of results returned:
+
+```bash
+bin/uc catalog list --max_results 10
+```
+
+## Default Instance
+
+The local Unity Catalog server comes pre-loaded with:
+- A default catalog named `unity`
+- A default schema named `default` (under `unity`)
+- Sample tables and other assets for testing
+
+You can use these for experimentation:
+
+```bash
+# List contents of default schema
+bin/uc table list --catalog unity --schema default
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Catalog Management" icon="database" href="/cli/catalogs">
+    Create and manage catalogs
+  </Card>
+  <Card title="Schema Management" icon="folder-tree" href="/cli/schemas">
+    Organize data with schemas
+  </Card>
+  <Card title="Table Management" icon="table" href="/cli/tables">
+    Work with structured data
+  </Card>
+  <Card title="Volume Management" icon="box" href="/cli/volumes">
+    Manage unstructured data
+  </Card>
+</CardGroup>

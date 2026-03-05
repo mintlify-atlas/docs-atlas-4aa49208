@@ -1,0 +1,148 @@
+---
+title: 'API Overview'
+description: 'Unity Catalog REST API and SDK reference'
+---
+
+# Unity Catalog API Reference
+
+Unity Catalog provides a comprehensive REST API and client SDKs for managing data catalogs, schemas, tables, volumes, functions, and ML models.
+
+## OpenAPI Specification
+
+The Unity Catalog API follows the OpenAPI 3.0 specification. The complete API specification is available in the repository at `api/all.yaml`.
+
+## Base URL
+
+The default base URL for Unity Catalog API is:
+
+```
+http://localhost:8080/api/2.1/unity-catalog
+```
+
+For production deployments, replace `localhost:8080` with your Unity Catalog server address.
+
+## Authentication
+
+Unity Catalog uses Bearer token authentication. Include your token in the Authorization header:
+
+```bash
+Authorization: Bearer YOUR_ACCESS_TOKEN
+```
+
+See the [Authentication](/api/rest/authentication) page for detailed authentication examples.
+
+## API Structure
+
+Unity Catalog organizes data assets in a three-level namespace:
+
+1. **Catalog** - Top-level container for organizing data assets
+2. **Schema** - Second-level container (also called database) that organizes tables, volumes, and functions
+3. **Assets** - Tables, volumes, functions, and models that reside in schemas
+
+## Available SDKs
+
+### Python SDK
+
+Install via pip:
+
+```bash
+pip install unitycatalog-client
+```
+
+Learn more: [Python SDK Documentation](/api/python-sdk)
+
+### Java SDK
+
+Add to your Maven `pom.xml`:
+
+```xml
+<dependency>
+  <groupId>io.unitycatalog</groupId>
+  <artifactId>unitycatalog-client</artifactId>
+  <version>0.3.0</version>
+</dependency>
+```
+
+Learn more: [Java SDK Documentation](/api/java-sdk)
+
+## REST API Resources
+
+The Unity Catalog REST API provides the following resource endpoints:
+
+<CardGroup cols={2}>
+  <Card title="Catalogs" icon="database" href="/api/rest/catalogs">
+    Create and manage catalogs
+  </Card>
+  <Card title="Schemas" icon="layer-group" href="/api/rest/schemas">
+    Create and manage schemas
+  </Card>
+  <Card title="Tables" icon="table" href="/api/rest/tables">
+    Create and manage tables
+  </Card>
+  <Card title="Volumes" icon="folder" href="/api/rest/volumes">
+    Create and manage volumes
+  </Card>
+  <Card title="Functions" icon="function" href="/api/rest/functions">
+    Create and manage functions
+  </Card>
+  <Card title="Models" icon="brain" href="/api/rest/models">
+    Create and manage ML models
+  </Card>
+  <Card title="Permissions" icon="lock" href="/api/rest/permissions">
+    Manage access control
+  </Card>
+  <Card title="Credentials" icon="key" href="/api/rest/credentials">
+    Generate temporary credentials
+  </Card>
+</CardGroup>
+
+## Pagination
+
+List operations support pagination using `page_token` and `max_results` parameters:
+
+- **max_results** - Maximum number of items to return (server may configure limits)
+- **page_token** - Opaque token from previous response to retrieve next page
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8080/api/2.1/unity-catalog/catalogs?max_results=10"
+```
+
+The response includes `next_page_token` if more results are available.
+
+## Rate Limits
+
+Rate limits depend on your Unity Catalog server configuration. The reference implementation does not enforce rate limits by default.
+
+## Error Handling
+
+The API returns standard HTTP status codes:
+
+- **200** - Success
+- **400** - Bad Request (invalid parameters)
+- **401** - Unauthorized (invalid or missing authentication)
+- **403** - Forbidden (insufficient permissions)
+- **404** - Not Found (resource does not exist)
+- **409** - Conflict (resource already exists)
+- **500** - Internal Server Error
+
+## Response Format
+
+All API responses use JSON format with UTF-8 encoding.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Python SDK" icon="python" href="/api/python-sdk">
+    Get started with the Python client
+  </Card>
+  <Card title="Java SDK" icon="java" href="/api/java-sdk">
+    Get started with the Java client
+  </Card>
+  <Card title="REST API" icon="code" href="/api/rest/authentication">
+    Explore the REST API
+  </Card>
+  <Card title="OpenAPI Spec" icon="file-code" href="https://github.com/unitycatalog/unitycatalog">
+    View the full OpenAPI specification
+  </Card>
+</CardGroup>

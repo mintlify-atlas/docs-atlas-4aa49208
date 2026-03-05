@@ -1,0 +1,197 @@
+---
+title: Server Installation
+description: Install and run the Unity Catalog server from source
+---
+
+This guide walks you through installing and running the Unity Catalog server on your local machine or server.
+
+## Prerequisites
+
+Before you begin, ensure your environment meets the following requirements:
+
+- **Java 17**: Unity Catalog requires JDK 17 to run
+- **Git**: To clone the repository
+- **JAVA_HOME**: Environment variable configured to point to JDK 17
+
+<Note>
+You can verify your Java version by running:
+```bash
+java --version
+```
+
+You should see output similar to:
+```
+openjdk 17.0.12 2024-07-16
+OpenJDK Runtime Environment Homebrew (build 17.0.12+0)
+OpenJDK 64-Bit Server VM Homebrew (build 17.0.12+0, mixed mode, sharing)
+```
+</Note>
+
+## Installation Steps
+
+<Steps>
+  <Step title="Clone the repository">
+    Clone the Unity Catalog repository from GitHub:
+    
+    ```bash
+    git clone git@github.com:unitycatalog/unitycatalog.git
+    cd unitycatalog
+    ```
+  </Step>
+
+  <Step title="Build the project">
+    Compile the project using the SBT build tool:
+    
+    ```bash
+    build/sbt package
+    ```
+    
+    This command compiles all the code and creates the necessary JAR files.
+    
+    <Note>
+    To compile without running tests, use:
+    ```bash
+    build/sbt clean compile
+    ```
+    </Note>
+  </Step>
+
+  <Step title="Start the UC server">
+    Launch the Unity Catalog server:
+    
+    ```bash
+    bin/start-uc-server
+    ```
+    
+    You should see the Unity Catalog banner:
+    
+    ```console
+    ################################################################### 
+    #  _    _       _ _            _____      _        _              #
+    # | |  | |     (_) |          / ____|    | |      | |             #
+    # | |  | |_ __  _| |_ _   _  | |     __ _| |_ __ _| | ___   __ _  #
+    # | |  | | '_ \| | __| | | | | |    / _` | __/ _` | |/ _ \ / _` | #
+    # | |__| | | | | | |_| |_| | | |___| (_| | || (_| | | (_) | (_| | #
+    #  \____/|_| |_|_|\__|\__, |  \_____\__,_|\__\__,_|_|\___/ \__, | #
+    #                      __/ |                                __/ | #
+    #                     |___/               v0.2.0           |___/  #
+    ###################################################################
+    ```
+  </Step>
+
+  <Step title="Verify the installation">
+    Open a new terminal window and verify the server is running by listing tables:
+    
+    ```bash
+    bin/uc table list --catalog unity --schema default
+    ```
+    
+    You should see a list of example tables included with Unity Catalog.
+  </Step>
+</Steps>
+
+## Default Server Configuration
+
+When you start the server without any options:
+
+- **Port**: `8080` (default)
+- **Environment**: Configured in `etc/conf/server.properties`
+- **Data directory**: `etc/data/`
+- **Database**: `etc/db/h2db.mv.db` (H2 database for development)
+- **Logs**: `etc/logs/server.log`
+
+## Running on a Custom Port
+
+To run the server on a specific port, use the `-p` or `--port` option:
+
+```bash
+bin/start-uc-server -p 9000
+```
+
+or
+
+```bash
+bin/start-uc-server --port 9000
+```
+
+## Server Endpoints
+
+Once running, the Unity Catalog server exposes REST API endpoints at:
+
+- **Base URL**: `http://localhost:8080`
+- **API Documentation**: See the [Unity Catalog REST API](https://docs.unitycatalog.io/swagger-docs/)
+
+## Testing the Installation
+
+### Using the CLI
+
+Test basic operations with the Unity Catalog CLI:
+
+```bash
+# List catalogs
+bin/uc catalog list
+
+# Get table metadata
+bin/uc table get --full_name unity.default.numbers
+
+# Read table contents
+bin/uc table read --full_name unity.default.numbers
+```
+
+### Using DuckDB
+
+You can also test the installation by connecting with DuckDB:
+
+```sql
+install uc_catalog from core_nightly;
+load uc_catalog;
+install delta;
+load delta;
+
+CREATE SECRET (
+  TYPE UC,
+  TOKEN 'not-used',
+  ENDPOINT 'http://127.0.0.1:8080',
+  AWS_REGION 'us-east-2'
+);
+
+ATTACH 'unity' AS unity (TYPE UC_CATALOG);
+SHOW ALL TABLES;
+SELECT * from unity.default.numbers;
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/server/configuration">
+    Configure the server environment, storage, and authentication
+  </Card>
+  <Card title="Deployment" icon="rocket" href="/server/deployment">
+    Deploy Unity Catalog to production environments
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Server won't start - Port already in use">
+    If port 8080 is already in use, either:
+    - Stop the service using port 8080
+    - Start the server on a different port using `-p <port_number>`
+  </Accordion>
+
+  <Accordion title="Java version mismatch">
+    Ensure `JAVA_HOME` points to JDK 17:
+    ```bash
+    export JAVA_HOME=/path/to/jdk-17
+    java --version
+    ```
+  </Accordion>
+
+  <Accordion title="Build fails">
+    Try cleaning and rebuilding:
+    ```bash
+    build/sbt clean compile package
+    ```
+  </Accordion>
+</AccordionGroup>

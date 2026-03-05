@@ -1,0 +1,510 @@
+---
+title: 'Tables API'
+description: 'Create and manage Unity Catalog tables'
+---
+
+# Tables API
+
+A table resides in the third layer of Unity Catalog's three-level namespace. It contains rows of data. A table can be managed or external.
+
+## Endpoints
+
+### Create Table
+
+Creates a new external table instance.
+
+<Warning>
+  This API is experimental and will change in future versions. Currently only external table creation is supported.
+</Warning>
+
+```http
+POST /api/2.1/unity-catalog/tables
+```
+
+#### Request Body
+
+<ParamField body="name" type="string" required>
+  Name of table, relative to parent schema.
+</ParamField>
+
+<ParamField body="catalog_name" type="string" required>
+  Name of parent catalog.
+</ParamField>
+
+<ParamField body="schema_name" type="string" required>
+  Name of parent schema relative to its parent catalog.
+</ParamField>
+
+<ParamField body="table_type" type="string" required>
+  Type of table. One of: `MANAGED`, `EXTERNAL`, `STREAMING_TABLE`, `MATERIALIZED_VIEW`.
+</ParamField>
+
+<ParamField body="data_source_format" type="string" required>
+  Data source format. One of: `DELTA`, `CSV`, `JSON`, `AVRO`, `PARQUET`, `ORC`, `TEXT`.
+</ParamField>
+
+<ParamField body="columns" type="array" required>
+  Array of ColumnInfo definitions for the table's columns.
+</ParamField>
+
+<ParamField body="storage_location" type="string" required>
+  Storage root URL for table.
+</ParamField>
+
+<ParamField body="comment" type="string">
+  User-provided free-form text description.
+</ParamField>
+
+<ParamField body="properties" type="object">
+  A map of key-value properties attached to the table.
+</ParamField>
+
+#### Column Info Structure
+
+<ParamField body="name" type="string" required>
+  Name of the column.
+</ParamField>
+
+<ParamField body="type_text" type="string" required>
+  Full data type specification as SQL/catalogString text.
+</ParamField>
+
+<ParamField body="type_name" type="string" required>
+  Type name (e.g., INT, STRING, DOUBLE, TIMESTAMP).
+</ParamField>
+
+<ParamField body="type_json" type="string" required>
+  Full data type specification, JSON-serialized.
+</ParamField>
+
+<ParamField body="position" type="integer" required>
+  Ordinal position of column (starting at position 0).
+</ParamField>
+
+<ParamField body="nullable" type="boolean" default="true">
+  Whether field may be null.
+</ParamField>
+
+<ParamField body="comment" type="string">
+  User-provided free-form text description.
+</ParamField>
+
+#### Response
+
+<ResponseField name="name" type="string">
+  Name of table.
+</ResponseField>
+
+<ResponseField name="catalog_name" type="string">
+  Name of parent catalog.
+</ResponseField>
+
+<ResponseField name="schema_name" type="string">
+  Name of parent schema.
+</ResponseField>
+
+<ResponseField name="table_type" type="string">
+  Type of table (MANAGED, EXTERNAL, etc.).
+</ResponseField>
+
+<ResponseField name="data_source_format" type="string">
+  Data source format (DELTA, CSV, etc.).
+</ResponseField>
+
+<ResponseField name="columns" type="array">
+  Array of ColumnInfo definitions.
+</ResponseField>
+
+<ResponseField name="storage_location" type="string">
+  Storage root URL for table.
+</ResponseField>
+
+<ResponseField name="table_id" type="string">
+  Unique identifier for the table.
+</ResponseField>
+
+<ResponseField name="owner" type="string">
+  Username of current owner of table.
+</ResponseField>
+
+<ResponseField name="created_at" type="integer">
+  Time at which this table was created, in epoch milliseconds.
+</ResponseField>
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "user_events",
+    "catalog_name": "analytics_catalog",
+    "schema_name": "production",
+    "table_type": "EXTERNAL",
+    "data_source_format": "DELTA",
+    "columns": [
+      {
+        "name": "user_id",
+        "type_text": "int",
+        "type_name": "INT",
+        "type_json": "{\"name\":\"user_id\",\"type\":\"integer\"}",
+        "position": 0,
+        "nullable": false,
+        "comment": "User identifier"
+      },
+      {
+        "name": "event_type",
+        "type_text": "string",
+        "type_name": "STRING",
+        "type_json": "{\"name\":\"event_type\",\"type\":\"string\"}",
+        "position": 1,
+        "nullable": false
+      },
+      {
+        "name": "timestamp",
+        "type_text": "timestamp",
+        "type_name": "TIMESTAMP",
+        "type_json": "{\"name\":\"timestamp\",\"type\":\"timestamp\"}",
+        "position": 2,
+        "nullable": false
+      }
+    ],
+    "storage_location": "s3://my-bucket/user_events",
+    "comment": "User event tracking table"
+  }' \
+  http://localhost:8080/api/2.1/unity-catalog/tables
+```
+
+```python Python
+from unitycatalog.client import (
+    CreateTable,
+    ColumnInfo,
+    ColumnTypeName,
+    TableType,
+    DataSourceFormat
+)
+
+table = await tables_api.create_table(
+    CreateTable(
+        name="user_events",
+        catalog_name="analytics_catalog",
+        schema_name="production",
+        table_type=TableType.EXTERNAL,
+        data_source_format=DataSourceFormat.DELTA,
+        columns=[
+            ColumnInfo(
+                name="user_id",
+                type_text="int",
+                type_name=ColumnTypeName.INT,
+                type_json='{"name":"user_id","type":"integer"}',
+                position=0,
+                nullable=False,
+                comment="User identifier"
+            ),
+            ColumnInfo(
+                name="event_type",
+                type_text="string",
+                type_name=ColumnTypeName.STRING,
+                type_json='{"name":"event_type","type":"string"}',
+                position=1,
+                nullable=False
+            ),
+            ColumnInfo(
+                name="timestamp",
+                type_text="timestamp",
+                type_name=ColumnTypeName.TIMESTAMP,
+                type_json='{"name":"timestamp","type":"timestamp"}',
+                position=2,
+                nullable=False
+            )
+        ],
+        storage_location="s3://my-bucket/user_events",
+        comment="User event tracking table"
+    )
+)
+print(f"Created table: {table.name}")
+```
+
+```java Java
+List<ColumnInfo> columns = Arrays.asList(
+    new ColumnInfo()
+        .name("user_id")
+        .typeText("int")
+        .typeName(ColumnTypeName.INT)
+        .typeJson("{\"name\":\"user_id\",\"type\":\"integer\"}")
+        .position(0)
+        .nullable(false)
+        .comment("User identifier"),
+    new ColumnInfo()
+        .name("event_type")
+        .typeText("string")
+        .typeName(ColumnTypeName.STRING)
+        .typeJson("{\"name\":\"event_type\",\"type\":\"string\"}")
+        .position(1)
+        .nullable(false),
+    new ColumnInfo()
+        .name("timestamp")
+        .typeText("timestamp")
+        .typeName(ColumnTypeName.TIMESTAMP)
+        .typeJson("{\"name\":\"timestamp\",\"type\":\"timestamp\"}")
+        .position(2)
+        .nullable(false)
+);
+
+CreateTable request = new CreateTable()
+    .name("user_events")
+    .catalogName("analytics_catalog")
+    .schemaName("production")
+    .tableType(TableType.EXTERNAL)
+    .dataSourceFormat(DataSourceFormat.DELTA)
+    .columns(columns)
+    .storageLocation("s3://my-bucket/user_events")
+    .comment("User event tracking table");
+
+TableInfo table = tablesApi.createTable(request);
+System.out.println("Created table: " + table.getName());
+```
+</CodeGroup>
+
+---
+
+### List Tables
+
+Gets the list of all available tables under the parent catalog and schema.
+
+```http
+GET /api/2.1/unity-catalog/tables
+```
+
+#### Query Parameters
+
+<ParamField query="catalog_name" type="string" required>
+  Name of parent catalog for tables of interest.
+</ParamField>
+
+<ParamField query="schema_name" type="string" required>
+  Parent schema of tables.
+</ParamField>
+
+<ParamField query="max_results" type="integer">
+  Maximum number of tables to return. Maximum: 50.
+</ParamField>
+
+<ParamField query="page_token" type="string">
+  Opaque token to send for the next page of results (pagination).
+</ParamField>
+
+#### Response
+
+<ResponseField name="tables" type="array">
+  An array of table information objects.
+</ResponseField>
+
+<ResponseField name="next_page_token" type="string">
+  Opaque token to retrieve the next page of results.
+</ResponseField>
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X GET \
+  -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8080/api/2.1/unity-catalog/tables?catalog_name=analytics_catalog&schema_name=production&max_results=50"
+```
+
+```python Python
+response = await tables_api.list_tables(
+    catalog_name="analytics_catalog",
+    schema_name="production",
+    max_results=50
+)
+
+for table in response.tables:
+    print(f"{table.name} ({table.table_type})")
+    print(f"  Format: {table.data_source_format}")
+    print(f"  Columns: {len(table.columns)}")
+```
+
+```java Java
+ListTablesResponse response = tablesApi.listTables(
+    "analytics_catalog",
+    "production",
+    50,    // maxResults
+    null   // pageToken
+);
+
+for (TableInfo table : response.getTables()) {
+    System.out.println(table.getName() + " (" + table.getTableType() + ")");
+}
+```
+</CodeGroup>
+
+---
+
+### Get Table
+
+Gets a table for a specific catalog and schema.
+
+```http
+GET /api/2.1/unity-catalog/tables/{full_name}
+```
+
+#### Path Parameters
+
+<ParamField path="full_name" type="string" required>
+  Full name of the table (e.g., `catalog_name.schema_name.table_name`).
+</ParamField>
+
+#### Query Parameters
+
+<ParamField query="read_streaming_table_as_managed" type="boolean" default="true">
+  Whether to read Streaming Tables as Managed tables.
+</ParamField>
+
+<ParamField query="read_materialized_view_as_managed" type="boolean" default="true">
+  Whether to read Materialized Views as Managed tables.
+</ParamField>
+
+#### Response
+
+Returns a table information object with all fields described in [Create Table](#create-table).
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X GET \
+  -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/2.1/unity-catalog/tables/analytics_catalog.production.user_events
+```
+
+```python Python
+table = await tables_api.get_table(
+    "analytics_catalog.production.user_events"
+)
+
+print(f"Table: {table.name}")
+print(f"Type: {table.table_type}")
+print(f"Format: {table.data_source_format}")
+print(f"Storage: {table.storage_location}")
+
+print("\nColumns:")
+for column in table.columns:
+    nullable = "NULL" if column.nullable else "NOT NULL"
+    print(f"  {column.name}: {column.type_text} {nullable}")
+    if column.comment:
+        print(f"    Comment: {column.comment}")
+```
+
+```java Java
+TableInfo table = tablesApi.getTable(
+    "analytics_catalog.production.user_events"
+);
+
+System.out.println("Table: " + table.getName());
+System.out.println("Type: " + table.getTableType());
+System.out.println("Format: " + table.getDataSourceFormat());
+
+System.out.println("\nColumns:");
+for (ColumnInfo column : table.getColumns()) {
+    System.out.println("  " + column.getName() + ": " + column.getTypeText());
+}
+```
+</CodeGroup>
+
+---
+
+### Delete Table
+
+Deletes a table from the specified parent catalog and schema.
+
+```http
+DELETE /api/2.1/unity-catalog/tables/{full_name}
+```
+
+#### Path Parameters
+
+<ParamField path="full_name" type="string" required>
+  Full name of the table to delete.
+</ParamField>
+
+#### Response
+
+Returns an empty response on success.
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE \
+  -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/2.1/unity-catalog/tables/analytics_catalog.production.user_events
+```
+
+```python Python
+await tables_api.delete_table(
+    "analytics_catalog.production.user_events"
+)
+print("Table deleted successfully")
+```
+
+```java Java
+tablesApi.deleteTable("analytics_catalog.production.user_events");
+System.out.println("Table deleted successfully");
+```
+</CodeGroup>
+
+---
+
+## Column Types
+
+Supported column type names:
+
+- `BOOLEAN`
+- `BYTE`, `SHORT`, `INT`, `LONG`
+- `FLOAT`, `DOUBLE`
+- `DECIMAL` (requires `type_precision` and `type_scale`)
+- `DATE`, `TIMESTAMP`, `TIMESTAMP_NTZ`
+- `STRING`, `BINARY`, `CHAR`
+- `ARRAY`, `STRUCT`, `MAP`
+- `INTERVAL`
+
+## Error Responses
+
+### 400 Bad Request
+
+```json
+{
+  "error": "Bad Request",
+  "message": "Table columns cannot be empty"
+}
+```
+
+### 404 Not Found
+
+```json
+{
+  "error": "Not Found",
+  "message": "Table 'analytics_catalog.production.user_events' not found"
+}
+```
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Schemas API" icon="layer-group" href="/api/rest/schemas">
+    Manage parent schemas
+  </Card>
+  <Card title="Credentials API" icon="key" href="/api/rest/credentials">
+    Generate table credentials
+  </Card>
+  <Card title="Python SDK" icon="python" href="/api/python-sdk">
+    Use the Python client
+  </Card>
+  <Card title="Java SDK" icon="java" href="/api/java-sdk">
+    Use the Java client
+  </Card>
+</CardGroup>

@@ -1,0 +1,335 @@
+---
+title: 'Schema Management'
+description: 'Manage Unity Catalog schemas using the CLI'
+---
+
+## Overview
+
+Schemas (also known as databases) are containers within catalogs that organize your tables, views, volumes, and functions. Use the `bin/uc schema` commands to manage schemas.
+
+<Note>
+Schemas use a **full name** format: `catalog_name.schema_name`
+</Note>
+
+## List Schemas
+
+List all schemas within a catalog:
+
+```bash
+bin/uc schema list \
+  --catalog <catalog> \
+  [--max_results <max_results>]
+```
+
+<ParamField path="--catalog" type="string" required>
+  The name of the catalog containing the schemas.
+</ParamField>
+
+<ParamField path="--max_results" type="integer">
+  Optional. Maximum number of results to return.
+</ParamField>
+
+### Example
+
+```bash
+bin/uc schema list --catalog unity
+```
+
+## Get Schema Details
+
+Retrieve detailed information about a specific schema:
+
+```bash
+bin/uc schema get --full_name <full_name>
+```
+
+<ParamField path="--full_name" type="string" required>
+  The full name of the schema in the format `catalog_name.schema_name`.
+</ParamField>
+
+### Example
+
+```bash
+bin/uc schema get --full_name unity.default
+```
+
+## Create a Schema
+
+Create a new schema within a catalog:
+
+```bash
+bin/uc schema create \
+  --catalog <catalog> \
+  --name <name> \
+  [--comment <comment>] \
+  [--properties <properties>]
+```
+
+<ParamField path="--catalog" type="string" required>
+  The name of the catalog where the schema will be created.
+</ParamField>
+
+<ParamField path="--name" type="string" required>
+  The name of the schema to create.
+</ParamField>
+
+<ParamField path="--comment" type="string">
+  Optional. A description of the schema.
+</ParamField>
+
+<ParamField path="--properties" type="json">
+  Optional. Properties of the schema in JSON format (e.g., `'{"key1": "value1", "key2": "value2"}'`).
+</ParamField>
+
+### Example
+
+<CodeGroup>
+```bash Basic schema
+bin/uc schema create \
+  --catalog my_catalog \
+  --name my_schema
+```
+
+```bash With metadata
+bin/uc schema create \
+  --catalog my_catalog \
+  --name my_schema \
+  --comment "My Schema" \
+  --properties '{"key1": "value1", "key2": "value2"}'
+```
+
+```bash Production schema
+bin/uc schema create \
+  --catalog analytics \
+  --name sales \
+  --comment "Sales analytics data" \
+  --properties '{"team": "sales-ops", "pii": "true"}'
+```
+</CodeGroup>
+
+## Update a Schema
+
+Update an existing schema's metadata:
+
+```bash
+bin/uc schema update \
+  --full_name <full_name> \
+  [--new_name <new_name>] \
+  [--comment <comment>] \
+  [--properties <properties>]
+```
+
+<ParamField path="--full_name" type="string" required>
+  The full name of the existing schema in the format `catalog_name.schema_name`.
+</ParamField>
+
+<ParamField path="--new_name" type="string">
+  Optional. The new name for the schema (to rename it).
+</ParamField>
+
+<ParamField path="--comment" type="string">
+  Optional. The new description for the schema.
+</ParamField>
+
+<ParamField path="--properties" type="json">
+  Optional. The new properties for the schema in JSON format.
+</ParamField>
+
+<Warning>
+At least one of the optional parameters (`--new_name`, `--comment`, or `--properties`) must be specified.
+</Warning>
+
+### Example
+
+<CodeGroup>
+```bash Update comment
+bin/uc schema update \
+  --full_name my_catalog.my_schema \
+  --comment "Updated Schema Description"
+```
+
+```bash Rename schema
+bin/uc schema update \
+  --full_name my_catalog.my_schema \
+  --new_name my_updated_schema
+```
+
+```bash Update all fields
+bin/uc schema update \
+  --full_name my_catalog.my_schema \
+  --new_name my_updated_schema \
+  --comment "Updated Schema" \
+  --properties '{"updated_key": "updated_value"}'
+```
+</CodeGroup>
+
+## Delete a Schema
+
+Delete an existing schema:
+
+```bash
+bin/uc schema delete --full_name <full_name>
+```
+
+<ParamField path="--full_name" type="string" required>
+  The full name of the schema to delete in the format `catalog_name.schema_name`.
+</ParamField>
+
+### Example
+
+```bash
+bin/uc schema delete --full_name my_catalog.my_schema
+```
+
+<Warning>
+Deleting a schema will also delete all tables, volumes, and functions within it. This operation cannot be undone.
+</Warning>
+
+## Complete Workflow Example
+
+Here's a complete example showing schema lifecycle management:
+
+<Steps>
+  <Step title="Create a catalog first">
+    ```bash
+    bin/uc catalog create \
+      --name production \
+      --comment "Production data catalog"
+    ```
+  </Step>
+  
+  <Step title="Create multiple schemas">
+    ```bash
+    # Create sales schema
+    bin/uc schema create \
+      --catalog production \
+      --name sales \
+      --comment "Sales transaction data"
+    
+    # Create marketing schema
+    bin/uc schema create \
+      --catalog production \
+      --name marketing \
+      --comment "Marketing campaign data"
+    ```
+  </Step>
+  
+  <Step title="List all schemas">
+    ```bash
+    bin/uc schema list --catalog production
+    ```
+  </Step>
+  
+  <Step title="Get schema details">
+    ```bash
+    bin/uc schema get --full_name production.sales
+    ```
+  </Step>
+  
+  <Step title="Update schema metadata">
+    ```bash
+    bin/uc schema update \
+      --full_name production.sales \
+      --comment "Sales and revenue data" \
+      --properties '{"owner": "sales-team", "contains_pii": "true"}'
+    ```
+  </Step>
+  
+  <Step title="Delete a schema">
+    ```bash
+    bin/uc schema delete --full_name production.marketing
+    ```
+  </Step>
+</Steps>
+
+## Working with the Default Schema
+
+The Unity Catalog server comes with a default schema:
+
+```bash
+# Access the default schema in the unity catalog
+bin/uc schema get --full_name unity.default
+
+# List tables in the default schema
+bin/uc table list --catalog unity --schema default
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Schema Organization">
+    - Group related tables, volumes, and functions in the same schema
+    - Use schemas to separate different data domains (sales, marketing, finance)
+    - Consider environment-based schemas (dev, test, prod) or use separate catalogs
+    - Create schemas based on access control requirements
+  </Accordion>
+  
+  <Accordion title="Naming Conventions">
+    - Use lowercase names with underscores (e.g., `customer_data`)
+    - Keep names concise but descriptive
+    - Use consistent naming across catalogs
+    - Avoid using reserved SQL keywords
+  </Accordion>
+  
+  <Accordion title="Metadata Management">
+    - Always provide meaningful comments for documentation
+    - Use properties to track ownership, data classification, and compliance info
+    - Document sensitive data (PII, PHI) in properties
+    - Keep property keys consistent across all schemas
+  </Accordion>
+  
+  <Accordion title="Schema Lifecycle">
+    - Plan schema structure before creating tables
+    - Use test schemas for development and validation
+    - Document migration plans when renaming schemas
+    - Coordinate with users before deleting schemas
+  </Accordion>
+</AccordionGroup>
+
+## Common Patterns
+
+### Multi-Environment Setup
+
+```bash
+# Create environment-specific schemas
+bin/uc schema create --catalog analytics --name dev_sales
+bin/uc schema create --catalog analytics --name staging_sales
+bin/uc schema create --catalog analytics --name prod_sales
+```
+
+### Domain-Based Organization
+
+```bash
+# Create domain-specific schemas
+bin/uc schema create --catalog enterprise --name customer_data
+bin/uc schema create --catalog enterprise --name product_data
+bin/uc schema create --catalog enterprise --name financial_data
+```
+
+### Data Classification
+
+```bash
+# Create schema with data classification properties
+bin/uc schema create \
+  --catalog secure \
+  --name customer_pii \
+  --comment "Customer personally identifiable information" \
+  --properties '{"classification": "confidential", "retention_days": "2555", "owner": "privacy-team"}'
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Table Management" icon="table" href="/cli/tables">
+    Create tables within your schemas
+  </Card>
+  <Card title="Volume Management" icon="box" href="/cli/volumes">
+    Add volumes for unstructured data
+  </Card>
+  <Card title="Function Management" icon="function" href="/cli/functions">
+    Register functions in your schemas
+  </Card>
+  <Card title="Catalog Management" icon="database" href="/cli/catalogs">
+    Back to catalog management
+  </Card>
+</CardGroup>

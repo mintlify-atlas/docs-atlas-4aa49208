@@ -1,0 +1,482 @@
+---
+title: 'Volume Management'
+description: 'Manage Unity Catalog volumes for unstructured data using the CLI'
+---
+
+## Overview
+
+Volumes provide governed storage for unstructured data like images, videos, logs, and other files. They're stored within schemas alongside tables and functions. Use the `bin/uc volume` commands to manage volumes.
+
+<Note>
+Volumes use a **full name** format: `catalog_name.schema_name.volume_name`
+</Note>
+
+## List Volumes
+
+List all volumes within a schema:
+
+```bash
+bin/uc volume list \
+  --catalog <catalog> \
+  --schema <schema> \
+  [--max_results <max_results>]
+```
+
+<ParamField path="--catalog" type="string" required>
+  The name of the catalog.
+</ParamField>
+
+<ParamField path="--schema" type="string" required>
+  The name of the schema.
+</ParamField>
+
+<ParamField path="--max_results" type="integer">
+  Optional. Maximum number of results to return.
+</ParamField>
+
+### Example
+
+```bash
+bin/uc volume list --catalog unity --schema default
+```
+
+## Get Volume Details
+
+Retrieve detailed information about a specific volume:
+
+```bash
+bin/uc volume get --full_name <full_name>
+```
+
+<ParamField path="--full_name" type="string" required>
+  The full name of the volume in the format `catalog_name.schema_name.volume_name`.
+</ParamField>
+
+### Example
+
+```bash
+bin/uc volume get --full_name unity.default.txt_files
+```
+
+## Create a Volume
+
+Create a new volume in a schema:
+
+```bash
+bin/uc volume create \
+  --full_name <full_name> \
+  --storage_location <storage_location> \
+  [--comment <comment>]
+```
+
+<ParamField path="--full_name" type="string" required>
+  The full name of the volume in the format `catalog_name.schema_name.volume_name`.
+</ParamField>
+
+<ParamField path="--storage_location" type="string" required>
+  The storage location for the volume. Can be:
+  - **Local absolute path** (e.g., `/path/to/storage`)
+  - **S3 path** (e.g., `s3://bucket/path`) - requires proper server configuration
+  
+  For Databricks Unity Catalog, external volumes must use S3 locations configured as external locations in your workspace.
+</ParamField>
+
+<ParamField path="--comment" type="string">
+  Optional. A description of the volume.
+</ParamField>
+
+### Examples
+
+<CodeGroup>
+```bash Basic volume
+bin/uc volume create \
+  --full_name my_catalog.my_schema.my_volume \
+  --storage_location "/path/to/storage"
+```
+
+```bash With description
+bin/uc volume create \
+  --full_name my_catalog.my_schema.my_volume \
+  --storage_location "/path/to/storage" \
+  --comment "Storage for application logs"
+```
+
+```bash S3 volume
+bin/uc volume create \
+  --full_name analytics.data.raw_files \
+  --storage_location "s3://my-bucket/raw-data" \
+  --comment "Raw data files for processing"
+```
+
+```bash Image storage
+bin/uc volume create \
+  --full_name media.assets.product_images \
+  --storage_location "/media/products" \
+  --comment "Product catalog images"
+```
+</CodeGroup>
+
+<Info>
+When using S3 storage locations, ensure your Unity Catalog server is configured with the necessary AWS credentials and the S3 bucket permissions are properly set.
+</Info>
+
+## Update a Volume
+
+Update an existing volume's metadata:
+
+```bash
+bin/uc volume update \
+  --full_name <full_name> \
+  [--new_name <new_name>] \
+  [--comment <comment>]
+```
+
+<ParamField path="--full_name" type="string" required>
+  The full name of the existing volume in the format `catalog_name.schema_name.volume_name`.
+</ParamField>
+
+<ParamField path="--new_name" type="string">
+  Optional. The new name for the volume (to rename it).
+</ParamField>
+
+<ParamField path="--comment" type="string">
+  Optional. The new description for the volume.
+</ParamField>
+
+<Warning>
+At least one of the optional parameters (`--new_name` or `--comment`) must be specified.
+</Warning>
+
+### Examples
+
+<CodeGroup>
+```bash Update comment
+bin/uc volume update \
+  --full_name my_catalog.my_schema.my_volume \
+  --comment "Updated Volume Description"
+```
+
+```bash Rename volume
+bin/uc volume update \
+  --full_name my_catalog.my_schema.my_volume \
+  --new_name my_updated_volume
+```
+
+```bash Update both
+bin/uc volume update \
+  --full_name my_catalog.my_schema.my_volume \
+  --new_name my_updated_volume \
+  --comment "Updated Volume"
+```
+</CodeGroup>
+
+## Read Volume Content
+
+Access the contents of a volume:
+
+```bash
+bin/uc volume read \
+  --full_name <full_name> \
+  [--path <path>]
+```
+
+<ParamField path="--full_name" type="string" required>
+  The full name of the volume in the format `catalog_name.schema_name.volume_name`.
+</ParamField>
+
+<ParamField path="--path" type="string">
+  Optional. The path relative to the volume root.
+  - If not provided, the volume root is read
+  - If the path is a **directory**, contents are listed (like `ls`)
+  - If the path is a **file**, contents are displayed (like `cat`)
+</ParamField>
+
+### Examples
+
+<CodeGroup>
+```bash List root directory
+bin/uc volume read --full_name my_catalog.my_schema.my_volume
+```
+
+```bash List subdirectory
+bin/uc volume read \
+  --full_name my_catalog.my_schema.my_volume \
+  --path "logs/2024"
+```
+
+```bash Read a file
+bin/uc volume read \
+  --full_name my_catalog.my_schema.my_volume \
+  --path "config.json"
+```
+
+```bash Navigate deep paths
+bin/uc volume read \
+  --full_name media.assets.images \
+  --path "products/category-a/item-123.jpg"
+```
+</CodeGroup>
+
+## Write Sample Data
+
+Write sample data to a volume (experimental feature):
+
+```bash
+bin/uc volume write --full_name <full_name>
+```
+
+<ParamField path="--full_name" type="string" required>
+  The full name of the volume in the format `catalog_name.schema_name.volume_name`.
+</ParamField>
+
+### Example
+
+```bash
+bin/uc volume write --full_name my_catalog.my_schema.my_volume
+```
+
+<Info>
+This operation writes sample text data to a randomly generated file name (UUID) in the volume. This is an experimental feature for testing purposes.
+</Info>
+
+## Delete a Volume
+
+Delete an existing volume:
+
+```bash
+bin/uc volume delete --full_name <full_name>
+```
+
+<ParamField path="--full_name" type="string" required>
+  The full name of the volume to delete in the format `catalog_name.schema_name.volume_name`.
+</ParamField>
+
+### Example
+
+```bash
+bin/uc volume delete --full_name my_catalog.my_schema.my_volume
+```
+
+<Warning>
+Deleting a volume removes its metadata from Unity Catalog. Depending on your configuration, the underlying files may still exist in storage.
+</Warning>
+
+## Complete Workflow Example
+
+Here's a complete example of the volume lifecycle:
+
+<Steps>
+  <Step title="Create catalog and schema">
+    ```bash
+    bin/uc catalog create --name media --comment "Media assets"
+    bin/uc schema create --catalog media --name images
+    ```
+  </Step>
+  
+  <Step title="Create a volume">
+    ```bash
+    bin/uc volume create \
+      --full_name media.images.product_photos \
+      --storage_location "/media/products" \
+      --comment "Product photography and assets"
+    ```
+  </Step>
+  
+  <Step title="Write test data">
+    ```bash
+    bin/uc volume write --full_name media.images.product_photos
+    ```
+  </Step>
+  
+  <Step title="List volume contents">
+    ```bash
+    bin/uc volume read --full_name media.images.product_photos
+    ```
+  </Step>
+  
+  <Step title="Read a specific file">
+    ```bash
+    bin/uc volume read \
+      --full_name media.images.product_photos \
+      --path "<uuid-from-write>.txt"
+    ```
+  </Step>
+  
+  <Step title="Update volume metadata">
+    ```bash
+    bin/uc volume update \
+      --full_name media.images.product_photos \
+      --comment "Product photos - updated catalog"
+    ```
+  </Step>
+  
+  <Step title="Get volume details">
+    ```bash
+    bin/uc volume get --full_name media.images.product_photos
+    ```
+  </Step>
+  
+  <Step title="Clean up">
+    ```bash
+    bin/uc volume delete --full_name media.images.product_photos
+    ```
+  </Step>
+</Steps>
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Log Storage">
+    Store application logs with governance and access control.
+    
+    ```bash
+    bin/uc volume create \
+      --full_name ops.monitoring.app_logs \
+      --storage_location "/logs/applications" \
+      --comment "Application logs for monitoring and debugging"
+    ```
+  </Accordion>
+  
+  <Accordion title="ML Model Artifacts">
+    Store trained model files, checkpoints, and related artifacts.
+    
+    ```bash
+    bin/uc volume create \
+      --full_name ml.models.artifacts \
+      --storage_location "s3://ml-bucket/model-artifacts" \
+      --comment "ML model artifacts and checkpoints"
+    ```
+  </Accordion>
+  
+  <Accordion title="Media Assets">
+    Govern access to images, videos, and other media files.
+    
+    ```bash
+    bin/uc volume create \
+      --full_name content.media.images \
+      --storage_location "/media/images" \
+      --comment "Product and marketing images"
+    ```
+  </Accordion>
+  
+  <Accordion title="Data Exports">
+    Store exported reports and data files.
+    
+    ```bash
+    bin/uc volume create \
+      --full_name analytics.exports.reports \
+      --storage_location "/exports/reports" \
+      --comment "Generated reports and data exports"
+    ```
+  </Accordion>
+  
+  <Accordion title="Configuration Files">
+    Centralized storage for application configurations.
+    
+    ```bash
+    bin/uc volume create \
+      --full_name platform.configs.app_settings \
+      --storage_location "/configs/apps" \
+      --comment "Application configuration files"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Storage Organization">
+    - Use consistent directory structures within volumes
+    - Organize files by date, category, or purpose
+    - Document your file organization scheme in the volume comment
+    - Consider creating separate volumes for different file types
+  </Accordion>
+  
+  <Accordion title="Storage Locations">
+    - Use absolute paths for local storage
+    - For production, prefer cloud storage (S3) over local paths
+    - Keep storage locations consistent across environments
+    - Ensure proper permissions and access controls on storage
+  </Accordion>
+  
+  <Accordion title="Naming Conventions">
+    - Use descriptive names that indicate content type
+    - Follow consistent naming patterns (e.g., `<purpose>_<type>`)
+    - Use lowercase with underscores
+    - Examples: `product_images`, `app_logs`, `model_artifacts`
+  </Accordion>
+  
+  <Accordion title="Access Management">
+    - Document who should have access in the comment
+    - Use volumes to enforce data governance on unstructured data
+    - Consider separate volumes for different security classifications
+    - Regular audit volume access patterns
+  </Accordion>
+  
+  <Accordion title="Lifecycle Management">
+    - Document retention policies in volume comments
+    - Plan for volume growth and storage costs
+    - Archive or delete old volumes when no longer needed
+    - Monitor volume usage and storage consumption
+  </Accordion>
+</AccordionGroup>
+
+## Storage Location Types
+
+### Local Storage
+
+For Unity Catalog OSS server:
+
+```bash
+bin/uc volume create \
+  --full_name catalog.schema.local_volume \
+  --storage_location "/absolute/path/to/storage"
+```
+
+**Pros:**
+- Simple setup for development
+- Fast access for local testing
+- No cloud costs
+
+**Cons:**
+- Not suitable for production
+- Limited scalability
+- No built-in redundancy
+
+### S3 Storage
+
+For production deployments:
+
+```bash
+bin/uc volume create \
+  --full_name catalog.schema.s3_volume \
+  --storage_location "s3://bucket-name/path"
+```
+
+**Pros:**
+- Scalable and durable
+- Suitable for production
+- Built-in redundancy
+- Pay-as-you-go pricing
+
+**Requirements:**
+- Server must be configured with AWS credentials
+- S3 bucket must have proper IAM policies
+- For Databricks UC, must be configured as external location
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Function Management" icon="function" href="/cli/functions">
+    Create and invoke functions
+  </Card>
+  <Card title="Table Management" icon="table" href="/cli/tables">
+    Work with structured data in tables
+  </Card>
+  <Card title="Volumes Guide" icon="book" href="/usage/volumes">
+    Deep dive into volumes
+  </Card>
+  <Card title="Schema Management" icon="folder-tree" href="/cli/schemas">
+    Back to schema management
+  </Card>
+</CardGroup>

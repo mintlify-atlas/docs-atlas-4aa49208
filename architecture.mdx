@@ -1,0 +1,494 @@
+---
+title: Architecture Overview
+description: Understand how Unity Catalog is designed and how its components work together
+---
+
+# Unity Catalog Architecture
+
+This guide provides an overview of Unity Catalog's architecture, explaining how the various components work together to provide unified data and AI governance.
+
+## System Architecture
+
+Unity Catalog follows a client-server architecture with multiple integration points:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Compute Engines                          │
+│  (Spark, DuckDB, Trino, Daft, etc.)                            │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         │ REST API / SDK
+                         │
+┌────────────────────────▼────────────────────────────────────────┐
+│                   Unity Catalog Server                          │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐        │
+│  │   REST API   │  │     Auth     │  │  Permissions │        │
+│  └──────────────┘  └──────────────┘  └──────────────┘        │
+│  ┌──────────────────────────────────────────────────┐         │
+│  │          Metadata Management Layer               │         │
+│  │  (Catalogs, Schemas, Tables, Models, etc.)      │         │
+│  └──────────────────────────────────────────────────┘         │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         │
+┌────────────────────────▼────────────────────────────────────────┐
+│                    Backend Storage                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐        │
+│  │   Metadata   │  │  Data Files  │  │  Model Artifacts │    │
+│  │  (H2/MySQL/  │  │ (S3/ADLS/GCS)│  │  (Cloud Storage) │    │
+│  │  PostgreSQL) │  │              │  │                  │    │
+│  └──────────────┘  └──────────────┘  └──────────────┘        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Core Components
+
+### 1. Unity Catalog Server
+
+The UC server is the central component that manages metadata and enforces governance policies.
+
+<Accordion title="Server Responsibilities">
+  - **Metadata Management**: Stores and manages catalog, schema, table, volume, function, and model metadata
+  - **Authentication & Authorization**: Controls who can access what resources
+  - **API Gateway**: Exposes REST APIs for all operations
+  - **Credential Vending**: Generates temporary credentials for secure data access
+  - **Lineage Tracking**: Records data lineage and audit logs
+</Accordion>
+
+#### Starting the Server
+
+```bash
+bin/start-uc-server
+```
+
+The server listens on port `8080` by default and exposes the REST API at:
+
+```
+http://localhost:8080/api/2.1/unity-catalog/
+```
+
+### 2. Command Line Interface (CLI)
+
+The CLI provides a convenient way to interact with Unity Catalog from the terminal:
+
+```bash
+# List catalogs
+bin/uc catalog list
+
+# Create a schema
+bin/uc schema create --catalog mycatalog --name myschema
+
+# List tables
+bin/uc table list --catalog unity --schema default
+
+# Read table data
+bin/uc table read --full_name unity.default.numbers
+```
+
+<Note>
+  The CLI is built on top of the Java SDK and communicates with the server via REST APIs.
+</Note>
+
+### 3. Client SDKs
+
+Unity Catalog provides SDKs for programmatic access:
+
+<CodeGroup>
+```python Python SDK
+from unitycatalog.client import ApiClient, Configuration
+from unitycatalog.client.api import TablesApi
+
+# Configure client
+config = Configuration()
+config.host = "http://localhost:8080/api/2.1/unity-catalog"
+client = ApiClient(configuration=config)
+
+# List tables
+tables_api = TablesApi(client)
+tables = tables_api.list_tables(
+    catalog_name="unity",
+    schema_name="default"
+)
+
+for table in tables.tables:
+    print(f"{table.name}: {table.table_type}")
+```
+
+```java Java SDK
+import io.unitycatalog.client.ApiClient;
+import io.unitycatalog.client.api.TablesApi;
+import io.unitycatalog.client.model.TableInfo;
+
+// Configure client
+ApiClient client = new ApiClient();
+client.setBasePath("http://localhost:8080/api/2.1/unity-catalog");
+
+// List tables
+TablesApi tablesApi = new TablesApi(client);
+ListTablesResponse tables = tablesApi.listTables(
+    "unity",   // catalog
+    "default", // schema
+    null,      // maxResults
+    null       // pageToken
+);
+
+for (TableInfo table : tables.getTables()) {
+    System.out.println(table.getName());
+}
+```
+</CodeGroup>
+
+### 4. Storage Layer
+
+Unity Catalog separates metadata from data storage:
+
+#### Metadata Storage
+
+The server stores metadata in a relational database:
+
+- **Development**: H2 in-memory database (default)
+- **Production**: MySQL, PostgreSQL, or other JDBC-compatible databases
+
+Configuration example (`etc/conf/hibernate.properties`):
+
+```properties
+hibernate.connection.driver_class=org.postgresql.Driver
+hibernate.connection.url=jdbc:postgresql://localhost:5432/ucdb
+hibernate.connection.user=uc_user
+hibernate.connection.password=uc_password
+```
+
+#### Data Storage
+
+Actual data files are stored separately in cloud storage:
+
+- **AWS S3**: Most common for Delta tables and volumes
+- **Azure ADLS**: For Azure deployments  
+- **Google Cloud Storage**: For GCP deployments
+- **Local filesystem**: For development and testing
+
+Unity Catalog generates temporary credentials for secure access to these storage locations.
+
+## Three-Level Namespace Architecture
+
+The namespace hierarchy provides logical organization:
+
+```
+Metastore (implicit top level)
+│
+├── Catalog (Level 1)
+│   ├── Schema (Level 2)
+│   │   ├── Table (Level 3)
+│   │   ├── Volume (Level 3)
+│   │   ├── Function (Level 3)
+│   │   └── Model (Level 3)
+│   └── Schema
+│       └── ...
+└── Catalog
+    └── ...
+```
+
+### Namespace Benefits
+
+<CardGroup cols={2}>
+  <Card title="Organization" icon="folder-tree">
+    Logical grouping of related assets by project, team, or domain
+  </Card>
+  <Card title="Isolation" icon="shield-halved">
+    Separate development, staging, and production environments
+  </Card>
+  <Card title="Multi-tenancy" icon="users">
+    Support multiple teams or customers in a single deployment
+  </Card>
+  <Card title="Governance" icon="lock">
+    Apply permissions at any level of the hierarchy
+  </Card>
+</CardGroup>
+
+### Example Namespaces
+
+```sql
+-- Production data
+production.sales.transactions
+production.sales.customers
+production.analytics.revenue_summary
+
+-- Development environment  
+dev.sales.transactions
+dev.sales.customers
+
+-- Machine learning assets
+ml.models.fraud_detection
+ml.features.user_embeddings
+```
+
+## Integration with Compute Engines
+
+Unity Catalog acts as a metadata layer that compute engines query before accessing data:
+
+### Query Flow
+
+<Steps>
+  <Step title="Query submitted">
+    User submits a query to a compute engine (e.g., DuckDB, Spark)
+    
+    ```sql
+    SELECT * FROM unity.default.numbers WHERE as_int > 500;
+    ```
+  </Step>
+  
+  <Step title="Metadata lookup">
+    Engine calls Unity Catalog REST API to retrieve table metadata:
+    - Table location (S3 path, storage URL)
+    - Table format (Delta, Iceberg, Parquet, etc.)
+    - Schema (columns, types, partitions)
+    - Permissions (user has read access?)
+  </Step>
+  
+  <Step title="Credential vending">
+    Unity Catalog generates temporary credentials for the storage location:
+    - AWS STS temporary credentials
+    - Azure SAS tokens
+    - GCS signed URLs
+  </Step>
+  
+  <Step title="Data access">
+    Compute engine uses credentials to read data directly from storage:
+    - No data flows through UC server
+    - Efficient access to large datasets
+    - Engine-native query optimization
+  </Step>
+  
+  <Step title="Results returned">
+    Query results returned to user
+  </Step>
+</Steps>
+
+<Note>
+  Unity Catalog is a **metadata service**, not a query engine. Actual query processing happens in the compute engines.
+</Note>
+
+### Supported Integrations
+
+Different engines integrate via different mechanisms:
+
+| Engine | Integration Type | Configuration |
+|--------|-----------------|---------------|
+| DuckDB | Native UC Catalog Extension | `ATTACH 'unity' AS unity (TYPE UC_CATALOG)` |
+| Apache Spark | UC Spark Connector | Spark catalog configuration |
+| Trino | UC Catalog Plugin | Trino catalog properties |
+| Daft | Native UC Support | Daft Unity Catalog reader |
+
+## API Layer
+
+Unity Catalog exposes a comprehensive REST API based on the OpenAPI 3.0 specification.
+
+### API Endpoints
+
+The API is organized by resource type:
+
+```
+/api/2.1/unity-catalog/
+├── catalogs              # Catalog management
+├── schemas               # Schema operations  
+├── tables                # Table metadata
+├── volumes               # Volume management
+├── functions             # UDF registration
+├── models                # Model registry
+├── temporary-*-credentials  # Credential vending
+└── permissions           # Access control
+```
+
+### Example API Calls
+
+<CodeGroup>
+```bash List Catalogs
+curl -X GET http://localhost:8080/api/2.1/unity-catalog/catalogs
+```
+
+```bash Get Table
+curl -X GET http://localhost:8080/api/2.1/unity-catalog/tables/unity.default.numbers
+```
+
+```bash Create Schema
+curl -X POST http://localhost:8080/api/2.1/unity-catalog/schemas \
+  -H "Content-Type: application/json" \
+  -d '{
+    "catalog_name": "unity",
+    "name": "myschema",
+    "comment": "My new schema"
+  }'
+```
+
+```bash Generate Credentials
+curl -X POST http://localhost:8080/api/2.1/unity-catalog/temporary-table-credentials \
+  -H "Content-Type: application/json" \
+  -d '{
+    "table_id": "unity.default.numbers",
+    "operation": "READ"
+  }'
+```
+</CodeGroup>
+
+### API Compatibility
+
+Unity Catalog maintains compatibility with existing APIs:
+
+- **Apache Hive Metastore API**: Legacy Hive applications can work without changes
+- **Apache Iceberg REST Catalog API**: Iceberg engines can use UC as a catalog backend
+
+## Security and Access Control Model
+
+Unity Catalog implements a comprehensive security model:
+
+### Authentication
+
+<Accordion title="Authentication Methods">
+  - **Token-based auth**: Bearer tokens for API access
+  - **OAuth 2.0**: Integration with identity providers
+  - **Service accounts**: For automated systems
+  - **Development mode**: No authentication for local testing
+</Accordion>
+
+### Authorization
+
+Permissions are granted at multiple levels:
+
+```
+Metastore
+└── USAGE, CREATE CATALOG
+    │
+    Catalog
+    └── USAGE, CREATE SCHEMA, SELECT, MODIFY, ALL PRIVILEGES
+        │
+        Schema  
+        └── USAGE, CREATE TABLE, CREATE FUNCTION, ALL PRIVILEGES
+            │
+            Table/Volume/Function/Model
+            └── SELECT, MODIFY, ALL PRIVILEGES
+```
+
+### Permission Example
+
+```sql
+-- Grant read access to a table
+GRANT SELECT ON TABLE unity.default.numbers TO user@example.com;
+
+-- Grant schema creation permission
+GRANT CREATE SCHEMA ON CATALOG unity TO data_engineers;
+
+-- Revoke access
+REVOKE SELECT ON TABLE unity.default.numbers FROM user@example.com;
+```
+
+### Secure Data Access
+
+Unity Catalog uses temporary credentials to secure data access:
+
+1. **Credential Vending**: UC generates short-lived credentials (15-60 minutes)
+2. **Least Privilege**: Credentials only grant access to requested resources
+3. **Audit Logging**: All credential requests are logged
+4. **Storage Integration**: Works with cloud IAM roles and policies
+
+## Deployment Architectures
+
+Unity Catalog can be deployed in various configurations:
+
+### Development (Local)
+
+```
+┌─────────────────┐
+│   Localhost     │
+│  ┌───────────┐  │
+│  │ UC Server │  │
+│  │ (H2 DB)   │  │
+│  └───────────┘  │
+│  ┌───────────┐  │
+│  │  Compute  │  │
+│  └───────────┘  │
+└─────────────────┘
+```
+
+### Production (Cloud)
+
+```
+┌──────────────────────────────────────────────┐
+│              Load Balancer                   │
+└──────────────┬───────────────────────────────┘
+               │
+    ┌──────────┴──────────┐
+    ▼                     ▼
+┌─────────┐          ┌─────────┐
+│UC Server│          │UC Server│  (Multiple instances)
+└────┬────┘          └────┬────┘
+     │                    │
+     └──────────┬─────────┘
+                ▼
+         ┌─────────────┐
+         │   RDS/DB    │  (Managed database)
+         │ (PostgreSQL)│
+         └─────────────┘
+```
+
+<CardGroup cols={2}>
+  <Card title="High Availability" icon="server">
+    Run multiple UC server instances behind a load balancer
+  </Card>
+  <Card title="Managed Database" icon="database">
+    Use AWS RDS, Azure Database, or Google Cloud SQL
+  </Card>
+  <Card title="Cloud Storage" icon="cloud">
+    Store data in S3, ADLS, or GCS with appropriate IAM roles
+  </Card>
+  <Card title="Monitoring" icon="chart-line">
+    Integrate with CloudWatch, Azure Monitor, or Cloud Logging
+  </Card>
+</CardGroup>
+
+## Performance Considerations
+
+### Metadata Caching
+
+Compute engines typically cache Unity Catalog metadata to reduce API calls:
+
+- Table schemas cached for query planning
+- Credential caching with TTL
+- Catalog/schema listings cached
+
+### Scalability
+
+Unity Catalog scales well because:
+
+1. **Data path separation**: Data never flows through UC server
+2. **Stateless server**: Multiple server instances can be deployed
+3. **Database scaling**: Backend database can be scaled independently
+4. **Efficient APIs**: Pagination and filtering reduce payload sizes
+
+### Best Practices
+
+<Accordion title="Performance Best Practices">
+  - Use database connection pooling
+  - Enable metadata caching in compute engines  
+  - Partition large tables for query performance
+  - Use volumes for unstructured data instead of many small files
+  - Monitor API latency and database query performance
+</Accordion>
+
+## Next Steps
+
+Now that you understand Unity Catalog's architecture:
+
+<CardGroup cols={2}>
+  <Card title="Server Configuration" icon="gear" href="/server/configuration">
+    Learn how to configure the UC server
+  </Card>
+  <Card title="API Reference" icon="book" href="/usage/api">
+    Explore the complete REST API
+  </Card>
+  <Card title="Integrations" icon="plug" href="/integrations">
+    Connect your favorite compute engines
+  </Card>
+  <Card title="Deployment Guide" icon="rocket" href="/deployment">
+    Deploy UC in production
+  </Card>
+</CardGroup>

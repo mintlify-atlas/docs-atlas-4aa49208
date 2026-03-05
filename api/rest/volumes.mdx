@@ -1,0 +1,489 @@
+---
+title: 'Volumes API'
+description: 'Create and manage Unity Catalog volumes'
+---
+
+# Volumes API
+
+Volumes are a Unity Catalog capability for accessing, storing, governing, organizing and processing files. Use cases include running machine learning on unstructured data such as image, audio, video, or PDF files.
+
+## Endpoints
+
+### Create Volume
+
+Creates a new volume.
+
+```http
+POST /api/2.1/unity-catalog/volumes
+```
+
+#### Request Body
+
+<ParamField body="catalog_name" type="string" required>
+  The name of the catalog where the schema and the volume are.
+</ParamField>
+
+<ParamField body="schema_name" type="string" required>
+  The name of the schema where the volume is.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  The name of the volume.
+</ParamField>
+
+<ParamField body="volume_type" type="string" required>
+  The type of the volume. One of: `MANAGED`, `EXTERNAL`.
+</ParamField>
+
+<ParamField body="storage_location" type="string">
+  The storage location of the volume (required for EXTERNAL volumes).
+</ParamField>
+
+<ParamField body="comment" type="string">
+  The comment attached to the volume (max length: 65536).
+</ParamField>
+
+#### Response
+
+<ResponseField name="catalog_name" type="string">
+  The name of the catalog.
+</ResponseField>
+
+<ResponseField name="schema_name" type="string">
+  The name of the schema.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  The name of the volume.
+</ResponseField>
+
+<ResponseField name="volume_type" type="string">
+  The type of the volume (MANAGED or EXTERNAL).
+</ResponseField>
+
+<ResponseField name="full_name" type="string">
+  Full name of volume, in form of `catalog_name.schema_name.volume_name`.
+</ResponseField>
+
+<ResponseField name="volume_id" type="string">
+  Unique identifier of the volume.
+</ResponseField>
+
+<ResponseField name="storage_location" type="string">
+  The storage location of the volume.
+</ResponseField>
+
+<ResponseField name="owner" type="string">
+  The identifier of the user who owns the volume.
+</ResponseField>
+
+<ResponseField name="created_at" type="integer">
+  Time at which this volume was created, in epoch milliseconds.
+</ResponseField>
+
+<ResponseField name="created_by" type="string">
+  The identifier of the user who created the volume.
+</ResponseField>
+
+<ResponseField name="updated_at" type="integer">
+  Time at which this volume was last modified, in epoch milliseconds.
+</ResponseField>
+
+<ResponseField name="updated_by" type="string">
+  The identifier of the user who updated the volume last time.
+</ResponseField>
+
+<ResponseField name="comment" type="string">
+  The comment attached to the volume.
+</ResponseField>
+
+#### Example
+
+<CodeGroup>
+```bash cURL - External Volume
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "catalog_name": "main",
+    "schema_name": "default",
+    "name": "my_volume",
+    "volume_type": "EXTERNAL",
+    "storage_location": "s3://my-bucket/data",
+    "comment": "External volume for ML datasets"
+  }' \
+  http://localhost:8080/api/2.1/unity-catalog/volumes
+```
+
+```bash cURL - Managed Volume
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "catalog_name": "main",
+    "schema_name": "default",
+    "name": "my_managed_volume",
+    "volume_type": "MANAGED",
+    "comment": "Managed volume for processed data"
+  }' \
+  http://localhost:8080/api/2.1/unity-catalog/volumes
+```
+
+```python Python
+from unitycatalog.client import CreateVolumeRequestContent, VolumeType
+
+# Create external volume
+volume = await volumes_api.create_volume(
+    CreateVolumeRequestContent(
+        catalog_name="main",
+        schema_name="default",
+        name="my_volume",
+        volume_type=VolumeType.EXTERNAL,
+        storage_location="s3://my-bucket/data",
+        comment="External volume for ML datasets"
+    )
+)
+print(f"Created volume: {volume.full_name}")
+```
+
+```java Java
+CreateVolumeRequestContent request = new CreateVolumeRequestContent()
+    .catalogName("main")
+    .schemaName("default")
+    .name("my_volume")
+    .volumeType(VolumeType.EXTERNAL)
+    .storageLocation("s3://my-bucket/data")
+    .comment("External volume for ML datasets");
+
+VolumeInfo volume = volumesApi.createVolume(request);
+System.out.println("Created volume: " + volume.getFullName());
+```
+</CodeGroup>
+
+---
+
+### List Volumes
+
+Gets an array of available volumes under the parent catalog and schema.
+
+```http
+GET /api/2.1/unity-catalog/volumes
+```
+
+#### Query Parameters
+
+<ParamField query="catalog_name" type="string" required>
+  The identifier of the catalog.
+</ParamField>
+
+<ParamField query="schema_name" type="string" required>
+  The identifier of the schema.
+</ParamField>
+
+<ParamField query="max_results" type="integer">
+  Maximum number of volumes to return (page length). Maximum: 10000.
+</ParamField>
+
+<ParamField query="page_token" type="string">
+  Opaque token returned by a previous request to retrieve the next page.
+</ParamField>
+
+#### Response
+
+<ResponseField name="volumes" type="array">
+  Array of volume information objects.
+</ResponseField>
+
+<ResponseField name="next_page_token" type="string">
+  Opaque token to retrieve the next page of results.
+</ResponseField>
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X GET \
+  -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8080/api/2.1/unity-catalog/volumes?catalog_name=main&schema_name=default&max_results=100"
+```
+
+```python Python
+response = await volumes_api.list_volumes(
+    catalog_name="main",
+    schema_name="default",
+    max_results=100
+)
+
+for volume in response.volumes:
+    print(f"Volume: {volume.full_name}")
+    print(f"  Type: {volume.volume_type}")
+    print(f"  Storage: {volume.storage_location}")
+    print(f"  Created: {volume.created_at}")
+```
+
+```java Java
+ListVolumesResponseContent response = volumesApi.listVolumes(
+    "main",
+    "default",
+    100,   // maxResults
+    null   // pageToken
+);
+
+for (VolumeInfo volume : response.getVolumes()) {
+    System.out.println("Volume: " + volume.getFullName());
+    System.out.println("  Type: " + volume.getVolumeType());
+}
+```
+</CodeGroup>
+
+---
+
+### Get Volume
+
+Gets a volume for a specific catalog and schema.
+
+```http
+GET /api/2.1/unity-catalog/volumes/{name}
+```
+
+#### Path Parameters
+
+<ParamField path="name" type="string" required>
+  The three-level (fully qualified) name of the volume (e.g., `main.default.my_volume`).
+</ParamField>
+
+#### Response
+
+Returns a volume information object with all fields described in [Create Volume](#create-volume).
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X GET \
+  -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/2.1/unity-catalog/volumes/main.default.my_volume
+```
+
+```python Python
+volume = await volumes_api.get_volume("main.default.my_volume")
+
+print(f"Volume: {volume.name}")
+print(f"Full Name: {volume.full_name}")
+print(f"Type: {volume.volume_type}")
+print(f"Storage Location: {volume.storage_location}")
+print(f"Owner: {volume.owner}")
+print(f"Comment: {volume.comment}")
+```
+
+```java Java
+VolumeInfo volume = volumesApi.getVolume("main.default.my_volume");
+
+System.out.println("Volume: " + volume.getName());
+System.out.println("Type: " + volume.getVolumeType());
+System.out.println("Storage: " + volume.getStorageLocation());
+```
+</CodeGroup>
+
+---
+
+### Update Volume
+
+Updates the specified volume under the specified parent catalog and schema. Currently only the name or the comment of the volume can be updated.
+
+```http
+PATCH /api/2.1/unity-catalog/volumes/{name}
+```
+
+#### Path Parameters
+
+<ParamField path="name" type="string" required>
+  The three-level name of the volume to update.
+</ParamField>
+
+#### Request Body
+
+<ParamField body="new_name" type="string">
+  New name for the volume.
+</ParamField>
+
+<ParamField body="comment" type="string">
+  The comment attached to the volume.
+</ParamField>
+
+#### Response
+
+Returns the updated volume information object.
+
+#### Example
+
+<CodeGroup>
+```bash cURL - Update Name
+curl -X PATCH \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "new_name": "my_new_volume"
+  }' \
+  http://localhost:8080/api/2.1/unity-catalog/volumes/main.default.my_volume
+```
+
+```bash cURL - Update Comment
+curl -X PATCH \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "comment": "Updated volume for ML datasets"
+  }' \
+  http://localhost:8080/api/2.1/unity-catalog/volumes/main.default.my_volume
+```
+
+```python Python
+from unitycatalog.client import UpdateVolumeRequestContent
+
+# Update volume name
+updated = await volumes_api.update_volume(
+    "main.default.my_volume",
+    UpdateVolumeRequestContent(
+        new_name="my_new_volume"
+    )
+)
+
+# Or update comment
+updated = await volumes_api.update_volume(
+    "main.default.my_volume",
+    UpdateVolumeRequestContent(
+        comment="Updated volume for ML datasets"
+    )
+)
+```
+
+```java Java
+UpdateVolumeRequestContent request = new UpdateVolumeRequestContent()
+    .newName("my_new_volume")
+    .comment("Updated volume for ML datasets");
+
+VolumeInfo updated = volumesApi.updateVolume(
+    "main.default.my_volume",
+    request
+);
+```
+</CodeGroup>
+
+---
+
+### Delete Volume
+
+Deletes a volume from the specified parent catalog and schema.
+
+```http
+DELETE /api/2.1/unity-catalog/volumes/{name}
+```
+
+#### Path Parameters
+
+<ParamField path="name" type="string" required>
+  The three-level name of the volume to delete.
+</ParamField>
+
+#### Response
+
+Returns an empty response on success.
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE \
+  -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/2.1/unity-catalog/volumes/main.default.my_volume
+```
+
+```python Python
+await volumes_api.delete_volume("main.default.my_volume")
+print("Volume deleted successfully")
+```
+
+```java Java
+volumesApi.deleteVolume("main.default.my_volume");
+System.out.println("Volume deleted successfully");
+```
+</CodeGroup>
+
+---
+
+## Volume Types
+
+### Managed Volumes
+
+Managed volumes are fully managed by Unity Catalog. The storage is automatically provisioned and the volume lifecycle is managed by Unity Catalog.
+
+```json
+{
+  "volume_type": "MANAGED"
+}
+```
+
+### External Volumes
+
+External volumes point to existing storage locations. You must specify the `storage_location` when creating an external volume.
+
+```json
+{
+  "volume_type": "EXTERNAL",
+  "storage_location": "s3://my-bucket/path"
+}
+```
+
+## Use Cases
+
+- **Machine Learning**: Store and access unstructured data like images, audio, video, or PDF files
+- **Data Exploration**: Organize datasets during data science workflows
+- **Library Storage**: Store library files (.whl, .jar) and configuration files
+- **ETL Processing**: Transform and query non-tabular data files
+
+## Error Responses
+
+### 400 Bad Request
+
+```json
+{
+  "error": "Bad Request",
+  "message": "storage_location is required for EXTERNAL volumes"
+}
+```
+
+### 404 Not Found
+
+```json
+{
+  "error": "Not Found",
+  "message": "Volume 'main.default.my_volume' not found"
+}
+```
+
+### 409 Conflict
+
+```json
+{
+  "error": "Conflict",
+  "message": "Volume 'my_volume' already exists"
+}
+```
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Credentials API" icon="key" href="/api/rest/credentials">
+    Generate volume credentials
+  </Card>
+  <Card title="Schemas API" icon="layer-group" href="/api/rest/schemas">
+    Manage parent schemas
+  </Card>
+  <Card title="Python SDK" icon="python" href="/api/python-sdk">
+    Use the Python client
+  </Card>
+  <Card title="Java SDK" icon="java" href="/api/java-sdk">
+    Use the Java client
+  </Card>
+</CardGroup>

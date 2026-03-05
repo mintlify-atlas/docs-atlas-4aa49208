@@ -1,0 +1,348 @@
+---
+title: Schemas
+description: Learn about schemas (databases), the second layer of Unity Catalog's namespace
+---
+
+## Overview
+
+A **schema** (also called a **database**) is the second layer of Unity Catalog's three-level namespace (`catalog.schema.table`). Schemas organize and contain tables, volumes, and functions within a catalog.
+
+Schemas provide a logical grouping mechanism for related data assets and enable fine-grained access control and organization within a catalog.
+
+## Schema Properties
+
+Each schema has the following properties:
+
+<ParamField path="name" type="string" required>
+  Name of the schema, relative to its parent catalog.
+</ParamField>
+
+<ParamField path="catalog_name" type="string" required>
+  Name of the parent catalog containing this schema.
+</ParamField>
+
+<ParamField path="full_name" type="string">
+  Full name of the schema in the form `catalog_name.schema_name`.
+</ParamField>
+
+<ParamField path="comment" type="string">
+  User-provided free-form text description of the schema.
+</ParamField>
+
+<ParamField path="properties" type="object">
+  A map of key-value properties attached to the schema for custom metadata.
+</ParamField>
+
+<ParamField path="storage_root" type="string">
+  Storage root URL for managed storage location of the schema. If not set, managed objects under this schema will use the catalog's storage location. Example: `s3://bucket/ucroot`
+</ParamField>
+
+<ParamField path="storage_location" type="string">
+  Automatically generated unique path under `storage_root`. If absent, managed objects will use the parent catalog's storage location. Example: `s3://bucket/ucroot/__unitystorage/schemas/{schema_id}`
+</ParamField>
+
+<ParamField path="owner" type="string">
+  Username of the current owner of the schema.
+</ParamField>
+
+<ParamField path="created_at" type="integer">
+  Time at which this schema was created, in epoch milliseconds.
+</ParamField>
+
+<ParamField path="schema_id" type="string">
+  Unique identifier for the schema (UUID).
+</ParamField>
+
+## Relationship to Catalogs
+
+Schemas are **direct children** of catalogs in the Unity Catalog hierarchy:
+
+```
+Catalog (1st level)
+└── Schema (2nd level)
+    ├── Tables (3rd level)
+    ├── Volumes (3rd level)
+    ├── Functions (3rd level)
+    └── Models (3rd level)
+```
+
+Each schema:
+- Must belong to exactly one catalog
+- Has a unique name within its parent catalog
+- Can contain multiple tables, volumes, functions, and models
+- Inherits storage configuration from its parent catalog if not explicitly set
+
+## Managing Schemas
+
+### List Schemas
+
+List all schemas in a catalog:
+
+```bash
+bin/uc schema list --catalog unity
+```
+
+With pagination:
+
+```bash
+bin/uc schema list \
+  --catalog unity \
+  --max_results 50
+```
+
+### Get Schema Details
+
+Retrieve information about a specific schema:
+
+```bash
+bin/uc schema get --full_name unity.default
+```
+
+<Note>
+The `full_name` parameter must use the format `catalog_name.schema_name`.
+</Note>
+
+### Create a Schema
+
+Create a new schema in a catalog:
+
+```bash
+bin/uc schema create \
+  --catalog my_catalog \
+  --name my_schema \
+  --comment "My Schema for customer data"
+```
+
+Create with custom properties:
+
+```bash
+bin/uc schema create \
+  --catalog my_catalog \
+  --name analytics_schema \
+  --comment "Analytics tables and views" \
+  --properties '{"team": "data-engineering", "cost_center": "12345"}'
+```
+
+Create with custom storage location:
+
+```bash
+bin/uc schema create \
+  --catalog data_lake \
+  --name raw_data \
+  --comment "Raw ingestion data" \
+  --storage_root "s3://my-bucket/raw-data-root"
+```
+
+### Update a Schema
+
+Update schema properties:
+
+```bash
+bin/uc schema update \
+  --full_name my_catalog.my_schema \
+  --new_name my_updated_schema \
+  --comment "Updated schema description" \
+  --properties '{"updated_key": "updated_value"}'
+```
+
+<Info>
+At least one optional parameter (`new_name`, `comment`, or `properties`) must be specified when updating.
+</Info>
+
+Rename a schema:
+
+```bash
+bin/uc schema update \
+  --full_name my_catalog.old_name \
+  --new_name new_name
+```
+
+### Delete a Schema
+
+Delete an empty schema:
+
+```bash
+bin/uc schema delete --full_name my_catalog.my_schema
+```
+
+Force delete a schema with all its contents:
+
+```bash
+bin/uc schema delete --full_name my_catalog.my_schema --force
+```
+
+<Note>
+Force deletion will delete all tables, volumes, functions, and models within the schema. Use with caution.
+</Note>
+
+## Use Cases
+
+### Data Lifecycle Stages
+
+Organize data by processing stage:
+
+```bash
+# Raw ingestion data
+bin/uc schema create \
+  --catalog data_lake \
+  --name raw \
+  --comment "Raw ingested data"
+
+# Cleaned and validated data
+bin/uc schema create \
+  --catalog data_lake \
+  --name staging \
+  --comment "Cleaned and validated data"
+
+# Production-ready data
+bin/uc schema create \
+  --catalog data_lake \
+  --name gold \
+  --comment "Production analytics tables"
+```
+
+### Subject Area Organization
+
+Group related tables by business domain:
+
+```bash
+bin/uc schema create \
+  --catalog enterprise \
+  --name customers \
+  --comment "Customer master data and profiles"
+
+bin/uc schema create \
+  --catalog enterprise \
+  --name orders \
+  --comment "Order transactions and history"
+
+bin/uc schema create \
+  --catalog enterprise \
+  --name products \
+  --comment "Product catalog and inventory"
+```
+
+### Access Control Boundaries
+
+Create schemas for different access levels:
+
+```bash
+bin/uc schema create \
+  --catalog analytics \
+  --name public \
+  --comment "Publicly accessible analytics"
+
+bin/uc schema create \
+  --catalog analytics \
+  --name restricted \
+  --comment "Restricted PII data"
+
+bin/uc schema create \
+  --catalog analytics \
+  --name confidential \
+  --comment "Highly confidential financial data"
+```
+
+## Schema Metadata
+
+Schemas store metadata that helps with:
+
+- **Identity**: Unique name within catalog and system-wide ID
+- **Lineage**: Creation and update timestamps with user attribution
+- **Storage**: Optional custom storage locations for managed objects
+- **Documentation**: Comments and custom properties
+- **Access Control**: Ownership and permission boundaries
+
+## Best Practices
+
+### Naming Conventions
+
+- Use lowercase names with underscores
+- Choose descriptive names reflecting the schema's purpose
+- Consider standard patterns:
+  - Data stages: `raw`, `staging`, `curated`, `gold`
+  - Domains: `finance`, `marketing`, `operations`
+  - Special purposes: `test`, `temp`, `archive`
+
+### Organization Strategies
+
+**By Data Stage:**
+```
+catalog.raw          # Landing zone
+catalog.bronze       # Raw with metadata
+catalog.silver       # Cleaned and validated
+catalog.gold         # Aggregated for analytics
+```
+
+**By Subject Area:**
+```
+catalog.customers
+catalog.products
+catalog.sales
+catalog.inventory
+```
+
+**By Team or Project:**
+```
+catalog.team_alpha
+catalog.team_beta
+catalog.project_x
+```
+
+### Storage Management
+
+- Set `storage_root` only when you need schema-specific storage isolation
+- Rely on catalog-level storage for most use cases
+- Use schema-level storage for:
+  - Different storage classes (hot vs cold)
+  - Different regions or availability zones
+  - Cost allocation by schema
+
+### Access Control
+
+- Grant `USE SCHEMA` privilege to users who need to query objects
+- Grant `CREATE TABLE` for users creating tables in the schema
+- Use schemas as boundaries for fine-grained access control
+- Document access policies in the schema comment
+
+### Metadata and Documentation
+
+- Always include meaningful comments describing the schema's purpose
+- Use properties for:
+  - Team ownership: `{"owner_team": "data-engineering"}`
+  - Cost tracking: `{"cost_center": "12345"}`
+  - Data classification: `{"sensitivity": "high"}`
+  - SLA information: `{"sla": "24h-refresh"}`
+
+### Schema Lifecycle
+
+- Create test/dev schemas separate from production
+- Use consistent naming across environments
+- Archive old schemas instead of deleting immediately
+- Document deprecation plans in schema comments
+
+## Working with Default Schema
+
+Every catalog typically has a `default` schema:
+
+```bash
+# Access default schema
+bin/uc schema get --full_name unity.default
+
+# List tables in default schema
+bin/uc table list --catalog unity --schema default
+```
+
+The default schema is useful for:
+- Quick prototyping
+- Example data
+- Shared utilities
+- Common reference tables
+
+## Related Resources
+
+- [Catalogs](/concepts/catalogs) - Learn about the parent container
+- [Tables](/concepts/tables) - Understand tables within schemas
+- [Volumes](/concepts/volumes) - Store unstructured data in schemas
+- [Functions](/concepts/functions) - Create user-defined functions in schemas
+- [Models](/concepts/models) - Register ML models in schemas

@@ -1,0 +1,329 @@
+---
+title: Trino Integration
+description: Query Unity Catalog tables with Trino's Iceberg REST catalog connector
+---
+
+Trino (formerly PrestoSQL) is a distributed SQL query engine designed for fast analytic queries against data of any size. Unity Catalog integrates with Trino through the Iceberg REST catalog API.
+
+## Overview
+
+Unity Catalog exposes an Iceberg REST catalog endpoint that Trino can connect to, enabling you to query Delta UniForm tables (Delta tables with Iceberg metadata) stored in Unity Catalog.
+
+<Info>
+  **Delta UniForm** allows Delta Lake tables to be read as Iceberg tables by maintaining Iceberg metadata alongside Delta metadata.
+</Info>
+
+## Prerequisites
+
+<CardGroup cols={2}>
+  <Card title="Trino" icon="server">
+    Trino installation with Iceberg connector support
+  </Card>
+  <Card title="Unity Catalog Server" icon="database">
+    Running UC server with Iceberg REST API enabled
+  </Card>
+</CardGroup>
+
+## Configuration
+
+### Setup Iceberg Catalog
+
+Configure Trino to connect to Unity Catalog by creating an `etc/catalog/iceberg.properties` file:
+
+```properties
+connector.name=iceberg
+iceberg.catalog.type=rest
+iceberg.rest-catalog.uri=http://127.0.0.1:8080/api/2.1/unity-catalog/iceberg
+iceberg.rest-catalog.security=OAUTH2
+iceberg.rest-catalog.oauth2.token=not_used
+```
+
+<ParamField path="connector.name" type="string" required>
+  Must be `iceberg` for Iceberg connector
+</ParamField>
+
+<ParamField path="iceberg.catalog.type" type="string" required>
+  Set to `rest` for REST catalog
+</ParamField>
+
+<ParamField path="iceberg.rest-catalog.uri" type="string" required>
+  Unity Catalog Iceberg REST endpoint URL
+</ParamField>
+
+<ParamField path="iceberg.rest-catalog.security" type="string" required>
+  Authentication method (`OAUTH2` for token-based auth)
+</ParamField>
+
+<ParamField path="iceberg.rest-catalog.oauth2.token" type="string">
+  Authentication token (use `not_used` for local development)
+</ParamField>
+
+### Restart Trino
+
+After creating the catalog configuration, restart your Trino server to load the new catalog:
+
+```bash
+bin/launcher restart
+```
+
+## Query Unity Catalog Tables
+
+Once configured, you can query Unity Catalog tables using the Trino CLI or any Trino client.
+
+### Start Trino CLI
+
+```bash
+bin/trino --server localhost:8080 --catalog iceberg
+```
+
+### List Schemas
+
+```sql
+SHOW SCHEMAS FROM iceberg;
+```
+
+Output:
+```
+       Schema       
+--------------------
+ information_schema
+ unity.default
+```
+
+### List Tables
+
+```sql
+SHOW TABLES FROM iceberg."unity.default";
+```
+
+<Note>
+  Note the quotes around `"unity.default"` - this is required because of the dot in the schema name.
+</Note>
+
+### Query Tables
+
+```sql
+SELECT * FROM iceberg."unity.default".marksheet_uniform LIMIT 10;
+```
+
+<CodeGroup>
+```sql Simple Query
+SELECT * 
+FROM iceberg."unity.default".marksheet_uniform 
+LIMIT 10;
+```
+
+```sql Filtered Query
+SELECT id, name, marks
+FROM iceberg."unity.default".marksheet_uniform
+WHERE marks > 500
+ORDER BY marks DESC;
+```
+
+```sql Aggregation Query
+SELECT 
+  COUNT(*) as total_students,
+  AVG(marks) as average_marks,
+  MAX(marks) as highest_marks,
+  MIN(marks) as lowest_marks
+FROM iceberg."unity.default".marksheet_uniform;
+```
+
+```sql Join Query
+SELECT 
+  m.id,
+  m.name,
+  m.marks,
+  u.country
+FROM iceberg."unity.default".marksheet_uniform m
+JOIN iceberg."unity.default".user_countries u
+  ON m.id = u.user_id
+WHERE m.marks > 700;
+```
+</CodeGroup>
+
+## Working with Multiple Catalogs
+
+You can configure multiple Unity Catalog instances by creating additional catalog property files:
+
+```properties etc/catalog/uc_prod.properties
+connector.name=iceberg
+iceberg.catalog.type=rest
+iceberg.rest-catalog.uri=https://prod-uc.example.com:8080/api/2.1/unity-catalog/iceberg
+iceberg.rest-catalog.security=OAUTH2
+iceberg.rest-catalog.oauth2.token=your_prod_token
+```
+
+```properties etc/catalog/uc_dev.properties
+connector.name=iceberg
+iceberg.catalog.type=rest
+iceberg.rest-catalog.uri=https://dev-uc.example.com:8080/api/2.1/unity-catalog/iceberg
+iceberg.rest-catalog.security=OAUTH2
+iceberg.rest-catalog.oauth2.token=your_dev_token
+```
+
+Query across catalogs:
+
+```sql
+SELECT * FROM uc_prod."unity.default".customers
+UNION ALL
+SELECT * FROM uc_dev."unity.default".test_customers;
+```
+
+## Delta UniForm Tables
+
+<Steps>
+  <Step title="Enable UniForm on Delta Tables">
+    To make Delta tables readable from Trino, enable UniForm when creating tables in Spark:
+    
+    ```sql
+    CREATE TABLE unity.default.my_table (
+      id INT,
+      name STRING,
+      value DOUBLE
+    )
+    USING delta
+    TBLPROPERTIES (
+      'delta.enableIcebergCompatV2' = 'true',
+      'delta.universalFormat.enabledFormats' = 'iceberg'
+    );
+    ```
+  </Step>
+  
+  <Step title="Query from Trino">
+    Once UniForm is enabled, the table becomes queryable from Trino:
+    
+    ```sql
+    SELECT * FROM iceberg."unity.default".my_table;
+    ```
+  </Step>
+</Steps>
+
+## Supported Features
+
+<AccordionGroup>
+  <Accordion title="Read Delta UniForm Tables">
+    Query Delta Lake tables that have Iceberg metadata generated via UniForm.
+  </Accordion>
+  
+  <Accordion title="Predicate Pushdown">
+    Trino pushes down filter predicates to optimize query performance.
+  </Accordion>
+  
+  <Accordion title="Partition Pruning">
+    Automatically prunes partitions based on query filters for better performance.
+  </Accordion>
+  
+  <Accordion title="Column Projection">
+    Only reads required columns from Parquet files to minimize I/O.
+  </Accordion>
+  
+  <Accordion title="Federated Queries">
+    Join Unity Catalog tables with tables from other catalogs (PostgreSQL, MySQL, etc.).
+  </Accordion>
+</AccordionGroup>
+
+## Limitations
+
+<Warning>
+  - **Read-only**: Trino currently supports reading Unity Catalog tables but not writing to them
+  - **Delta UniForm required**: Only Delta tables with UniForm (Iceberg metadata) are accessible
+  - **Schema naming**: Use quotes around schema names that contain dots (e.g., `"unity.default"`)
+</Warning>
+
+## Cloud Storage Configuration
+
+For tables stored in cloud object storage, ensure Unity Catalog server is configured with appropriate credentials:
+
+<Tabs>
+  <Tab title="AWS S3">
+    Configure in `etc/conf/server.properties`:
+    
+    ```properties
+    s3.bucketPath.0=s3://your-bucket
+    s3.region.0=us-east-2
+    s3.awsRoleArn.0=arn:aws:iam::123456789012:role/uc-role
+    ```
+    
+    Unity Catalog will vend temporary credentials to Trino automatically.
+  </Tab>
+  
+  <Tab title="Azure ADLS">
+    Configure in `etc/conf/server.properties`:
+    
+    ```properties
+    adls.storageAccountName.0=youraccount
+    adls.tenantId.0=your-tenant-id
+    adls.clientId.0=your-client-id
+    adls.clientSecret.0=your-secret
+    ```
+  </Tab>
+  
+  <Tab title="Google Cloud Storage">
+    Configure in `etc/conf/server.properties`:
+    
+    ```properties
+    gcs.bucketPath.0=gs://your-bucket
+    gcs.jsonKeyFilePath.0=/path/to/service-account-key.json
+    ```
+  </Tab>
+</Tabs>
+
+## Performance Optimization
+
+<CardGroup cols={2}>
+  <Card title="Filter Early" icon="filter">
+    Apply WHERE clauses to leverage partition pruning and reduce data scanned
+  </Card>
+  <Card title="Select Specific Columns" icon="table-columns">
+    Only select needed columns to minimize I/O and improve performance
+  </Card>
+  <Card title="Use Partitioned Tables" icon="layer-group">
+    Partition tables on commonly filtered columns for better query performance
+  </Card>
+  <Card title="Monitor Query Plans" icon="chart-line">
+    Use EXPLAIN to analyze query execution plans and identify bottlenecks
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Cannot connect to Unity Catalog">
+    - Verify UC server is running: `curl http://127.0.0.1:8080/api/2.1/unity-catalog/iceberg`
+    - Check firewall rules and network connectivity
+    - Ensure the REST endpoint URL is correct
+  </Accordion>
+  
+  <Accordion title="Table not found">
+    - Verify the table has UniForm enabled (Delta with Iceberg metadata)
+    - Use quotes around schema names: `iceberg."unity.default".table_name`
+    - Check table exists in Unity Catalog: `bin/uc table list --catalog unity --schema default`
+  </Accordion>
+  
+  <Accordion title="Authentication errors">
+    - For local development, use `oauth2.token=not_used`
+    - For production, ensure valid authentication token is provided
+    - Check Unity Catalog server authentication configuration
+  </Accordion>
+  
+  <Accordion title="Permission denied errors">
+    - Verify Unity Catalog server has access to cloud storage
+    - Check IAM roles and permissions for S3/Azure/GCS
+    - Ensure credential vending is configured correctly
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="Apache Spark" icon="fire" href="/integrations/spark">
+    Create Delta UniForm tables with Spark
+  </Card>
+  <Card title="DuckDB" icon="database" href="/integrations/duckdb">
+    Query Unity Catalog with DuckDB
+  </Card>
+  <Card title="Daft" icon="chart-bar" href="/integrations/daft">
+    Distributed dataframe processing
+  </Card>
+</CardGroup>

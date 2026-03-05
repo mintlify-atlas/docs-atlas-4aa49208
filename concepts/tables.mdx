@@ -1,0 +1,447 @@
+---
+title: Tables
+description: Learn about tables in Unity Catalog, including managed vs external tables and supported formats
+---
+
+## Overview
+
+A **table** resides in the third layer of Unity Catalog's three-level namespace (`catalog.schema.table`). Tables contain structured data organized in rows and columns, and are the primary way to store and query data in Unity Catalog.
+
+Tables can be **managed** (Unity Catalog controls the lifecycle) or **external** (you manage the data location), and support multiple data formats including Delta Lake, Parquet, CSV, JSON, and more.
+
+## Table Types
+
+Unity Catalog supports two main table types:
+
+### Managed Tables
+
+**Managed tables** are fully controlled by Unity Catalog:
+
+- Unity Catalog manages both **metadata** and **data files**
+- Data is stored in catalog/schema managed storage locations
+- When you drop a managed table, both metadata and data files are deleted
+- Best for data fully owned and managed within Unity Catalog
+
+### External Tables
+
+**External tables** reference data stored in external locations:
+
+- Unity Catalog manages only the **metadata**
+- Data files remain in your specified storage location
+- When you drop an external table, only metadata is deleted (data files remain)
+- Best for data shared across systems or when you need direct storage control
+
+<Info>
+Currently, the Unity Catalog CLI primarily supports external table creation. Managed tables require staging table operations.
+</Info>
+
+## Supported Data Formats
+
+Unity Catalog supports multiple data source formats:
+
+<Card title="DELTA" icon="triangle">
+  **Delta Lake** format - the default and recommended format. Provides ACID transactions, time travel, and schema evolution.
+</Card>
+
+<Card title="PARQUET" icon="file">
+  **Apache Parquet** - columnar storage format, efficient for analytics workloads.
+</Card>
+
+<Card title="CSV" icon="table">
+  **Comma-Separated Values** - simple text format for tabular data.
+</Card>
+
+<Card title="JSON" icon="braces">
+  **JSON** format - semi-structured data format.
+</Card>
+
+<Card title="AVRO" icon="database">
+  **Apache Avro** - row-based format with rich schema support.
+</Card>
+
+<Card title="ORC" icon="server">
+  **Optimized Row Columnar** - columnar format optimized for Hive.
+</Card>
+
+<Card title="TEXT" icon="font">
+  **Plain text** format for unstructured text data.
+</Card>
+
+## Table Properties
+
+Each table has the following properties:
+
+<ParamField path="name" type="string" required>
+  Name of the table, relative to parent schema.
+</ParamField>
+
+<ParamField path="catalog_name" type="string" required>
+  Name of the parent catalog.
+</ParamField>
+
+<ParamField path="schema_name" type="string" required>
+  Name of the parent schema.
+</ParamField>
+
+<ParamField path="full_name" type="string">
+  Full three-level name: `catalog_name.schema_name.table_name`
+</ParamField>
+
+<ParamField path="table_type" type="enum" required>
+  Type of table: `MANAGED`, `EXTERNAL`, `STREAMING_TABLE`, or `MATERIALIZED_VIEW`
+</ParamField>
+
+<ParamField path="data_source_format" type="enum" required>
+  Data format: `DELTA`, `PARQUET`, `CSV`, `JSON`, `AVRO`, `ORC`, or `TEXT`
+</ParamField>
+
+<ParamField path="columns" type="array" required>
+  Array of column definitions with name, type, and metadata.
+</ParamField>
+
+<ParamField path="storage_location" type="string">
+  Storage root URL where table data is stored. Required for external tables.
+</ParamField>
+
+<ParamField path="comment" type="string">
+  User-provided description of the table.
+</ParamField>
+
+<ParamField path="properties" type="object">
+  Map of custom key-value properties.
+</ParamField>
+
+<ParamField path="table_id" type="string">
+  Unique identifier for the table.
+</ParamField>
+
+## Column Types
+
+Tables support a wide range of column data types:
+
+### Numeric Types
+- `BOOLEAN` - True/false values
+- `BYTE` - 8-bit signed integer
+- `SHORT` - 16-bit signed integer  
+- `INT` - 32-bit signed integer
+- `LONG` - 64-bit signed integer
+- `FLOAT` - 32-bit floating point
+- `DOUBLE` - 64-bit floating point
+- `DECIMAL` - Arbitrary precision decimal (requires precision and scale)
+
+### String and Binary
+- `STRING` - Variable-length character string
+- `BINARY` - Variable-length binary data
+- `CHAR` - Fixed-length character string
+
+### Date and Time
+- `DATE` - Calendar date (year, month, day)
+- `TIMESTAMP` - Timestamp with timezone
+- `TIMESTAMP_NTZ` - Timestamp without timezone
+
+### Complex Types
+- `ARRAY` - Ordered collection of elements
+- `STRUCT` - Record with named fields
+- `MAP` - Key-value pairs
+
+### Special Types
+- `INTERVAL` - Time interval
+- `NULL` - Null type
+- `USER_DEFINED_TYPE` - Custom user-defined types
+- `TABLE_TYPE` - For table-valued functions
+
+## Managing Tables
+
+### List Tables
+
+List all tables in a schema:
+
+```bash
+bin/uc table list \
+  --catalog unity \
+  --schema default
+```
+
+With pagination:
+
+```bash
+bin/uc table list \
+  --catalog unity \
+  --schema default \
+  --max_results 50
+```
+
+### Get Table Information
+
+Retrieve detailed metadata about a table:
+
+```bash
+bin/uc table get --full_name unity.default.numbers
+```
+
+The output includes:
+- Table type and format
+- Column definitions with types
+- Storage location
+- Timestamps and ownership
+- Custom properties
+
+### Create a Table
+
+Create an external Delta table:
+
+```bash
+bin/uc table create \
+  --full_name my_catalog.my_schema.my_table \
+  --columns "id INT, name STRING, created_at TIMESTAMP" \
+  --storage_location "/path/to/storage"
+```
+
+<Note>
+When running against UC server, the storage location can be a local absolute path or a cloud storage path (e.g., S3). The server must be configured with appropriate credentials to access cloud storage.
+</Note>
+
+Create a Parquet table:
+
+```bash
+bin/uc table create \
+  --full_name my_catalog.my_schema.parquet_table \
+  --columns "id INT, value DOUBLE, description STRING" \
+  --format PARQUET \
+  --storage_location "s3://my-bucket/parquet-data"
+```
+
+Create a table with complex types:
+
+```bash
+bin/uc table create \
+  --full_name my_catalog.my_schema.complex_table \
+  --columns "id LONG, amount DECIMAL, metadata STRING, tags ARRAY" \
+  --storage_location "/path/to/complex-data"
+```
+
+Create with properties:
+
+```bash
+bin/uc table create \
+  --full_name my_catalog.my_schema.my_table \
+  --columns "id INT, name STRING" \
+  --storage_location "/path/to/storage" \
+  --properties '{"owner": "data-team", "refreshed": "daily"}'
+```
+
+### Read Table Data
+
+Read data from a Delta table:
+
+```bash
+bin/uc table read --full_name unity.default.numbers
+```
+
+Limit number of rows:
+
+```bash
+bin/uc table read \
+  --full_name unity.default.numbers \
+  --max_results 100
+```
+
+<Info>
+The `read` command uses Delta Kernel Java to read Delta tables. It currently supports reading but not writing or complex operations.
+</Info>
+
+### Write to Table
+
+Write sample data to a Delta table (experimental):
+
+```bash
+bin/uc table write --full_name my_catalog.my_schema.my_table
+```
+
+<Note>
+This is an experimental feature and only primitive types are supported for writing sample data.
+</Note>
+
+### Delete a Table
+
+Delete a table:
+
+```bash
+bin/uc table delete --full_name my_catalog.my_schema.my_table
+```
+
+For managed tables, this deletes both metadata and data files. For external tables, only metadata is deleted.
+
+## Table Column Metadata
+
+Columns support rich metadata:
+
+```json
+{
+  "name": "user_id",
+  "type_name": "LONG",
+  "type_text": "BIGINT",
+  "position": 0,
+  "nullable": false,
+  "comment": "Unique user identifier",
+  "partition_index": null
+}
+```
+
+<ParamField path="name" type="string">
+  Column name
+</ParamField>
+
+<ParamField path="type_name" type="enum">
+  Column data type (see Column Types above)
+</ParamField>
+
+<ParamField path="type_text" type="string">
+  Full data type specification as SQL text
+</ParamField>
+
+<ParamField path="type_json" type="string">
+  Full data type specification, JSON-serialized
+</ParamField>
+
+<ParamField path="position" type="integer">
+  Ordinal position in table (starting at 0)
+</ParamField>
+
+<ParamField path="nullable" type="boolean">
+  Whether the field may contain NULL values (default: true)
+</ParamField>
+
+<ParamField path="comment" type="string">
+  User-provided description of the column
+</ParamField>
+
+<ParamField path="partition_index" type="integer">
+  Partition index for partitioned columns
+</ParamField>
+
+## Use Cases
+
+### Analytics Tables
+
+Create fact and dimension tables for analytics:
+
+```bash
+# Fact table
+bin/uc table create \
+  --full_name analytics.gold.sales_fact \
+  --columns "sale_id LONG, customer_id LONG, product_id LONG, amount DECIMAL, sale_date DATE" \
+  --storage_location "s3://analytics-bucket/gold/sales_fact"
+
+# Dimension table
+bin/uc table create \
+  --full_name analytics.gold.customer_dim \
+  --columns "customer_id LONG, name STRING, email STRING, created_at TIMESTAMP" \
+  --storage_location "s3://analytics-bucket/gold/customer_dim"
+```
+
+### Data Lake Tables
+
+Organize raw data ingestion:
+
+```bash
+# Raw JSON logs
+bin/uc table create \
+  --full_name data_lake.raw.app_logs \
+  --columns "timestamp TIMESTAMP, level STRING, message STRING, metadata STRING" \
+  --format JSON \
+  --storage_location "s3://data-lake/raw/app_logs"
+
+# Processed Parquet
+bin/uc table create \
+  --full_name data_lake.curated.user_events \
+  --columns "event_id STRING, user_id LONG, event_type STRING, event_time TIMESTAMP" \
+  --format PARQUET \
+  --storage_location "s3://data-lake/curated/user_events"
+```
+
+### Shared External Data
+
+Reference data managed outside Unity Catalog:
+
+```bash
+bin/uc table create \
+  --full_name shared.reference.country_codes \
+  --columns "code STRING, name STRING, region STRING" \
+  --format CSV \
+  --storage_location "s3://shared-data/reference/countries.csv"
+```
+
+## Best Practices
+
+### Table Design
+
+- **Choose Delta format** for most use cases - provides ACID transactions, time travel, and optimizations
+- **Use appropriate types** - choose the most specific type (INT vs LONG, DATE vs TIMESTAMP)
+- **Document columns** - add comments to important columns explaining their meaning
+- **Consider partitioning** - for large tables, partition by commonly filtered columns
+
+### Naming Conventions
+
+- Use lowercase with underscores: `customer_orders`, `sales_fact`
+- Use suffixes for table types: `_fact`, `_dim`, `_raw`, `_staging`
+- Avoid reserved keywords and special characters
+- Keep names descriptive but concise
+
+### Storage Organization
+
+- **External tables**: Use consistent storage paths organized by catalog/schema
+- **Cloud storage**: Leverage S3, Azure Blob, or GCS for scalability
+- **Local paths**: Use absolute paths for local file systems
+- **Access control**: Ensure UC server has appropriate credentials configured
+
+### Performance Optimization
+
+- **Use Delta format** for automatic optimizations
+- **Choose Parquet** for read-heavy analytical workloads
+- **Partition large tables** by date or other high-cardinality columns
+- **Use appropriate compression** based on access patterns
+
+### Metadata Management
+
+- Always include table comments describing purpose and contents
+- Document data refresh schedules in properties
+- Track data lineage and ownership in properties
+- Keep schema documentation up-to-date
+
+### Security and Governance
+
+- Use managed tables for sensitive data requiring full lifecycle control
+- Use external tables for data shared across multiple systems
+- Grant SELECT privilege carefully for access control
+- Document data sensitivity in table comments
+
+## Reading Tables with DuckDB
+
+You can query Unity Catalog tables using DuckDB:
+
+```sql
+-- Connect to Unity Catalog
+CREATE SECRET (
+  TYPE UC,
+  TOKEN 'not-used',
+  ENDPOINT 'http://127.0.0.1:8080',
+  AWS_REGION 'us-east-2'
+);
+
+-- Attach catalog
+ATTACH 'unity' AS unity (TYPE UC_CATALOG);
+
+-- Query tables
+SELECT * FROM unity.default.numbers;
+SHOW ALL TABLES;
+```
+
+See the [Unity Catalog documentation](/cli/overview) for more details.
+
+## Related Resources
+
+- [Schemas](/concepts/schemas) - Learn about table organization in schemas
+- [Volumes](/concepts/volumes) - Store unstructured data alongside tables
+- [Functions](/concepts/functions) - Create functions that operate on tables
+- [CLI Usage](/cli/overview) - Complete CLI reference for table operations

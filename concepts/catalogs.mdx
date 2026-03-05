@@ -1,0 +1,237 @@
+---
+title: Catalogs
+description: Learn about catalogs, the first layer of Unity Catalog's three-level namespace
+---
+
+## Overview
+
+A **catalog** is the first layer of Unity Catalog's three-level namespace (`catalog.schema.table`). It's used to organize your data assets and provides the top-level container for schemas, which in turn contain tables, volumes, functions, and models.
+
+Catalogs enable logical data organization, isolation between different projects or teams, and serve as a governance boundary for access control and data management policies.
+
+## Catalog Properties
+
+Each catalog in Unity Catalog has the following properties:
+
+<ParamField path="name" type="string" required>
+  The unique name of the catalog. This is used to reference the catalog in three-level names.
+</ParamField>
+
+<ParamField path="comment" type="string">
+  User-provided free-form text description of the catalog's purpose.
+</ParamField>
+
+<ParamField path="properties" type="object">
+  A map of key-value properties attached to the catalog for storing custom metadata.
+</ParamField>
+
+<ParamField path="storage_root" type="string">
+  Storage root URL for managed storage location of the catalog (e.g., `s3://bucket/ucroot`). This is set when creating the catalog.
+</ParamField>
+
+<ParamField path="storage_location" type="string">
+  Automatically generated unique storage path under `storage_root`. Example: `s3://bucket/ucroot/__unitystorage/catalogs/{catalog_id}`
+</ParamField>
+
+<ParamField path="owner" type="string">
+  Username of the current owner of the catalog.
+</ParamField>
+
+<ParamField path="created_at" type="integer">
+  Time at which this catalog was created, in epoch milliseconds.
+</ParamField>
+
+<ParamField path="id" type="string">
+  Unique identifier for the catalog (UUID).
+</ParamField>
+
+## Catalog Metadata
+
+Catalogs store important metadata:
+
+- **Identity**: Unique name and ID
+- **Timestamps**: Creation and update times with user attribution
+- **Storage configuration**: Root location for managed data
+- **Custom properties**: Extensible key-value pairs for custom metadata
+- **Ownership**: Current owner for access control
+
+## Managing Catalogs
+
+### List All Catalogs
+
+View all catalogs you have access to:
+
+```bash
+bin/uc catalog list
+```
+
+With pagination:
+
+```bash
+bin/uc catalog list --max_results 50
+```
+
+### Get Catalog Details
+
+Retrieve detailed information about a specific catalog:
+
+```bash
+bin/uc catalog get --name unity
+```
+
+Example output:
+
+```console
+┌─────────────────────┬──────────────────────────────────────────┐
+│         KEY         │                  VALUE                   │
+├─────────────────────┼──────────────────────────────────────────┤
+│NAME                 │unity                                     │
+├─────────────────────┼──────────────────────────────────────────┤
+│COMMENT              │Main catalog                              │
+├─────────────────────┼──────────────────────────────────────────┤
+│PROPERTIES           │{}                                        │
+├─────────────────────┼──────────────────────────────────────────┤
+│ID                   │f029b870-9468-4f10-badc-630b41e5690d      │
+└─────────────────────┴──────────────────────────────────────────┘
+```
+
+### Create a Catalog
+
+Create a new catalog:
+
+```bash
+bin/uc catalog create \
+  --name my_catalog \
+  --comment "My First Catalog" \
+  --properties '{"key1": "value1", "key2": "value2"}'
+```
+
+<Note>
+When specifying properties in JSON format, use single quotes around the JSON string or escape double quotes.
+</Note>
+
+Create with custom storage location:
+
+```bash
+bin/uc catalog create \
+  --name data_lake_catalog \
+  --comment "Data Lake catalog for analytics" \
+  --storage_root "s3://my-bucket/catalog-root"
+```
+
+### Update a Catalog
+
+Update an existing catalog's properties:
+
+```bash
+bin/uc catalog update \
+  --name my_catalog \
+  --new_name my_updated_catalog \
+  --comment "Updated Catalog Description" \
+  --properties '{"updated_key": "updated_value"}'
+```
+
+<Info>
+At least one of the optional parameters (`new_name`, `comment`, or `properties`) must be specified when updating a catalog.
+</Info>
+
+### Delete a Catalog
+
+Delete a catalog (must be empty):
+
+```bash
+bin/uc catalog delete --name my_catalog
+```
+
+Force delete a catalog even if it contains schemas:
+
+```bash
+bin/uc catalog delete --name my_catalog --force
+```
+
+<Note>
+Force deletion will delete all nested schemas, tables, volumes, functions, and models within the catalog. Use with caution.
+</Note>
+
+## Use Cases
+
+### Data Organization by Environment
+
+Separate development, staging, and production data:
+
+```bash
+bin/uc catalog create --name dev_catalog --comment "Development environment"
+bin/uc catalog create --name staging_catalog --comment "Staging environment"
+bin/uc catalog create --name prod_catalog --comment "Production environment"
+```
+
+### Multi-tenant Data Isolation
+
+Create separate catalogs for different teams or projects:
+
+```bash
+bin/uc catalog create \
+  --name finance_catalog \
+  --comment "Finance team data"
+
+bin/uc catalog create \
+  --name marketing_catalog \
+  --comment "Marketing team data"
+```
+
+### Data Lake Organization
+
+Organize data by source or domain:
+
+```bash
+bin/uc catalog create \
+  --name customer_data \
+  --comment "Customer-related datasets" \
+  --storage_root "s3://data-lake/customer"
+
+bin/uc catalog create \
+  --name sales_data \
+  --comment "Sales and revenue datasets" \
+  --storage_root "s3://data-lake/sales"
+```
+
+## Best Practices
+
+### Naming Conventions
+
+- Use lowercase names with underscores for separation
+- Choose descriptive names that reflect the catalog's purpose
+- Avoid special characters except underscores
+- Keep names concise but meaningful
+
+### Organization Strategy
+
+- **By Environment**: Separate dev, staging, and production
+- **By Domain**: Organize by business domain (finance, marketing, operations)
+- **By Source**: Group data by originating system or source
+- **By Team**: Provide data isolation for different teams
+
+### Storage Configuration
+
+- Set `storage_root` when creating catalogs to define where managed data is stored
+- Use cloud storage paths appropriate for your infrastructure (S3, Azure Blob, GCS)
+- Ensure storage credentials are properly configured at the metastore level
+
+### Access Control
+
+- Assign ownership to appropriate users or service accounts
+- Use catalogs as governance boundaries for access control
+- Grant `USE CATALOG` privilege to users who need to interact with catalog contents
+- Grant `CREATE SCHEMA` privilege to users who need to create schemas within the catalog
+
+### Metadata Management
+
+- Use the `comment` field to document the catalog's purpose and contents
+- Leverage `properties` for custom metadata (cost center, owner contact, SLA, etc.)
+- Keep catalog descriptions up-to-date as usage evolves
+
+## Related Resources
+
+- [Schemas](/concepts/schemas) - Learn about the second layer of the namespace
+- [Tables](/concepts/tables) - Understand how tables are organized within schemas
+- [Volumes](/concepts/volumes) - Work with unstructured data in volumes

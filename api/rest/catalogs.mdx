@@ -1,0 +1,428 @@
+---
+title: 'Catalogs API'
+description: 'Create and manage Unity Catalog catalogs'
+---
+
+# Catalogs API
+
+A catalog is the first layer of Unity Catalog's three-level namespace. It's used to organize your data assets.
+
+## Endpoints
+
+### Create Catalog
+
+Creates a new catalog instance.
+
+```http
+POST /api/2.1/unity-catalog/catalogs
+```
+
+#### Request Body
+
+<ParamField body="name" type="string" required>
+  Name of catalog. Must be unique within the metastore.
+</ParamField>
+
+<ParamField body="comment" type="string">
+  User-provided free-form text description.
+</ParamField>
+
+<ParamField body="properties" type="object">
+  A map of key-value properties attached to the catalog.
+</ParamField>
+
+<ParamField body="storage_root" type="string">
+  Storage root URL for managed storage location of catalog. Example: `s3://bucket/ucroot`
+</ParamField>
+
+#### Response
+
+<ResponseField name="name" type="string">
+  Name of catalog.
+</ResponseField>
+
+<ResponseField name="id" type="string">
+  Unique identifier for the catalog.
+</ResponseField>
+
+<ResponseField name="comment" type="string">
+  User-provided free-form text description.
+</ResponseField>
+
+<ResponseField name="owner" type="string">
+  Username of current owner of catalog.
+</ResponseField>
+
+<ResponseField name="created_at" type="integer">
+  Time at which this catalog was created, in epoch milliseconds.
+</ResponseField>
+
+<ResponseField name="created_by" type="string">
+  Username of catalog creator.
+</ResponseField>
+
+<ResponseField name="updated_at" type="integer">
+  Time at which this catalog was last modified, in epoch milliseconds.
+</ResponseField>
+
+<ResponseField name="updated_by" type="string">
+  Username of user who last modified catalog.
+</ResponseField>
+
+<ResponseField name="storage_root" type="string">
+  Storage root URL for managed storage location of catalog.
+</ResponseField>
+
+<ResponseField name="storage_location" type="string">
+  Storage Location URL (full path) for managed storage location of catalog.
+</ResponseField>
+
+<ResponseField name="properties" type="object">
+  A map of key-value properties attached to the catalog.
+</ResponseField>
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "analytics_catalog",
+    "comment": "Catalog for analytics data",
+    "properties": {
+      "team": "data-engineering",
+      "environment": "production"
+    }
+  }' \
+  http://localhost:8080/api/2.1/unity-catalog/catalogs
+```
+
+```python Python
+from unitycatalog.client import CreateCatalog
+
+catalog = await catalogs_api.create_catalog(
+    CreateCatalog(
+        name="analytics_catalog",
+        comment="Catalog for analytics data",
+        properties={
+            "team": "data-engineering",
+            "environment": "production"
+        }
+    )
+)
+print(f"Created catalog: {catalog.name}")
+```
+
+```java Java
+CreateCatalog request = new CreateCatalog()
+    .name("analytics_catalog")
+    .comment("Catalog for analytics data")
+    .properties(Map.of(
+        "team", "data-engineering",
+        "environment", "production"
+    ));
+
+CatalogInfo catalog = catalogsApi.createCatalog(request);
+System.out.println("Created catalog: " + catalog.getName());
+```
+</CodeGroup>
+
+---
+
+### List Catalogs
+
+Lists the available catalogs. There is no guarantee of a specific ordering of the elements in the list.
+
+```http
+GET /api/2.1/unity-catalog/catalogs
+```
+
+#### Query Parameters
+
+<ParamField query="page_token" type="string">
+  Opaque pagination token to go to next page based on previous query.
+</ParamField>
+
+<ParamField query="max_results" type="integer">
+  Maximum number of catalogs to return. When set to 0, uses server configured value. Maximum: 1000.
+</ParamField>
+
+#### Response
+
+<ResponseField name="catalogs" type="array">
+  An array of catalog information objects.
+</ResponseField>
+
+<ResponseField name="next_page_token" type="string">
+  Opaque token to retrieve the next page of results. Absent if there are no more pages.
+</ResponseField>
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X GET \
+  -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8080/api/2.1/unity-catalog/catalogs?max_results=100"
+```
+
+```python Python
+response = await catalogs_api.list_catalogs(
+    max_results=100
+)
+
+for catalog in response.catalogs:
+    print(f"Catalog: {catalog.name}")
+    print(f"  Owner: {catalog.owner}")
+    print(f"  Created: {catalog.created_at}")
+```
+
+```java Java
+ListCatalogsResponse response = catalogsApi.listCatalogs(
+    null,  // pageToken
+    100    // maxResults
+);
+
+for (CatalogInfo catalog : response.getCatalogs()) {
+    System.out.println("Catalog: " + catalog.getName());
+    System.out.println("  Owner: " + catalog.getOwner());
+}
+```
+</CodeGroup>
+
+---
+
+### Get Catalog
+
+Gets the specified catalog.
+
+```http
+GET /api/2.1/unity-catalog/catalogs/{name}
+```
+
+#### Path Parameters
+
+<ParamField path="name" type="string" required>
+  The name of the catalog.
+</ParamField>
+
+#### Response
+
+Returns a catalog information object with all fields described in [Create Catalog](#create-catalog).
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X GET \
+  -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/2.1/unity-catalog/catalogs/analytics_catalog
+```
+
+```python Python
+catalog = await catalogs_api.get_catalog("analytics_catalog")
+
+print(f"Catalog: {catalog.name}")
+print(f"ID: {catalog.id}")
+print(f"Owner: {catalog.owner}")
+print(f"Comment: {catalog.comment}")
+print(f"Storage Root: {catalog.storage_root}")
+```
+
+```java Java
+CatalogInfo catalog = catalogsApi.getCatalog("analytics_catalog");
+
+System.out.println("Catalog: " + catalog.getName());
+System.out.println("ID: " + catalog.getId());
+System.out.println("Owner: " + catalog.getOwner());
+```
+</CodeGroup>
+
+---
+
+### Update Catalog
+
+Updates the catalog that matches the supplied name.
+
+```http
+PATCH /api/2.1/unity-catalog/catalogs/{name}
+```
+
+#### Path Parameters
+
+<ParamField path="name" type="string" required>
+  The name of the catalog to update.
+</ParamField>
+
+#### Request Body
+
+<ParamField body="comment" type="string">
+  User-provided free-form text description.
+</ParamField>
+
+<ParamField body="properties" type="object">
+  A map of key-value properties attached to the catalog.
+</ParamField>
+
+<ParamField body="new_name" type="string">
+  New name for the catalog.
+</ParamField>
+
+#### Response
+
+Returns the updated catalog information object.
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X PATCH \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "comment": "Updated analytics catalog",
+    "properties": {
+      "team": "data-science",
+      "environment": "production",
+      "version": "2.0"
+    }
+  }' \
+  http://localhost:8080/api/2.1/unity-catalog/catalogs/analytics_catalog
+```
+
+```python Python
+from unitycatalog.client import UpdateCatalog
+
+updated = await catalogs_api.update_catalog(
+    "analytics_catalog",
+    UpdateCatalog(
+        comment="Updated analytics catalog",
+        properties={
+            "team": "data-science",
+            "environment": "production",
+            "version": "2.0"
+        }
+    )
+)
+```
+
+```java Java
+UpdateCatalog request = new UpdateCatalog()
+    .comment("Updated analytics catalog")
+    .properties(Map.of(
+        "team", "data-science",
+        "environment", "production",
+        "version", "2.0"
+    ));
+
+CatalogInfo updated = catalogsApi.updateCatalog(
+    "analytics_catalog", 
+    request
+);
+```
+</CodeGroup>
+
+---
+
+### Delete Catalog
+
+Deletes the catalog that matches the supplied name.
+
+```http
+DELETE /api/2.1/unity-catalog/catalogs/{name}
+```
+
+#### Path Parameters
+
+<ParamField path="name" type="string" required>
+  The name of the catalog to delete.
+</ParamField>
+
+#### Query Parameters
+
+<ParamField query="force" type="boolean" default="false">
+  Force deletion even if the catalog is not empty.
+</ParamField>
+
+#### Response
+
+Returns an empty response on success.
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE \
+  -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8080/api/2.1/unity-catalog/catalogs/analytics_catalog?force=false"
+```
+
+```python Python
+await catalogs_api.delete_catalog(
+    "analytics_catalog",
+    force=False
+)
+print("Catalog deleted successfully")
+```
+
+```java Java
+catalogsApi.deleteCatalog("analytics_catalog", false);
+System.out.println("Catalog deleted successfully");
+```
+</CodeGroup>
+
+---
+
+## Error Responses
+
+### 400 Bad Request
+
+Returned when the request parameters are invalid.
+
+```json
+{
+  "error": "Bad Request",
+  "message": "Catalog name cannot be empty"
+}
+```
+
+### 404 Not Found
+
+Returned when the specified catalog does not exist.
+
+```json
+{
+  "error": "Not Found",
+  "message": "Catalog 'analytics_catalog' not found"
+}
+```
+
+### 409 Conflict
+
+Returned when attempting to create a catalog that already exists.
+
+```json
+{
+  "error": "Conflict",
+  "message": "Catalog 'analytics_catalog' already exists"
+}
+```
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Schemas API" icon="layer-group" href="/api/rest/schemas">
+    Create schemas within catalogs
+  </Card>
+  <Card title="Permissions API" icon="lock" href="/api/rest/permissions">
+    Manage catalog permissions
+  </Card>
+  <Card title="Python SDK" icon="python" href="/api/python-sdk">
+    Use the Python client
+  </Card>
+  <Card title="Java SDK" icon="java" href="/api/java-sdk">
+    Use the Java client
+  </Card>
+</CardGroup>

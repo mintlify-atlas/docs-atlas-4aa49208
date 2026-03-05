@@ -1,0 +1,463 @@
+---
+title: 'Model Management'
+description: 'Manage Unity Catalog registered models and model versions using the CLI'
+---
+
+## Overview
+
+Unity Catalog integrates with MLflow to govern and manage ML and AI models. You can use the CLI to list and inspect registered models and their versions stored in your Unity Catalog namespace.
+
+<Note>
+Registered models use a **full name** format: `catalog_name.schema_name.model_name`
+
+For creating, updating, and training models, use [MLflow](https://mlflow.org/docs/latest/index.html) directly. The CLI provides read-only operations for inspection.
+</Note>
+
+## Registered Models
+
+Registered models are ML models that have been registered in Unity Catalog. Each registered model can have multiple versions representing different iterations or variants of the model.
+
+### List Registered Models
+
+List all registered models in a schema:
+
+```bash
+bin/uc registered_model list \
+  --catalog <catalog> \
+  --schema <schema>
+```
+
+<ParamField path="--catalog" type="string" required>
+  The name of the catalog containing the models.
+</ParamField>
+
+<ParamField path="--schema" type="string" required>
+  The name of the schema containing the models.
+</ParamField>
+
+### Example
+
+```bash
+bin/uc registered_model list \
+  --catalog ml_catalog \
+  --schema models
+```
+
+### Get Registered Model Details
+
+Retrieve detailed metadata about a specific registered model:
+
+```bash
+bin/uc registered_model get --full_name <full_name>
+```
+
+<ParamField path="--full_name" type="string" required>
+  The full name of the model in the format `catalog_name.schema_name.model_name`.
+</ParamField>
+
+### Example
+
+```bash
+bin/uc registered_model get --full_name ml_catalog.models.fraud_detector
+```
+
+### Update Registered Model
+
+Update the name or comment of a registered model:
+
+```bash
+bin/uc registered_model update \
+  --full_name <full_name> \
+  [--new_name <new_name>] \
+  [--comment <comment>]
+```
+
+<ParamField path="--full_name" type="string" required>
+  The full name of the model in the format `catalog_name.schema_name.model_name`.
+</ParamField>
+
+<ParamField path="--new_name" type="string">
+  Optional. The new name for the model (to rename it).
+</ParamField>
+
+<ParamField path="--comment" type="string">
+  Optional. The new description for the model.
+</ParamField>
+
+### Example
+
+<CodeGroup>
+```bash Update comment
+bin/uc registered_model update \
+  --full_name ml_catalog.models.fraud_detector \
+  --comment "Updated fraud detection model - v2.0"
+```
+
+```bash Rename model
+bin/uc registered_model update \
+  --full_name ml_catalog.models.fraud_detector \
+  --new_name fraud_detection_v2
+```
+
+```bash Update both
+bin/uc registered_model update \
+  --full_name ml_catalog.models.fraud_detector \
+  --new_name fraud_detection_v2 \
+  --comment "Production fraud detection model"
+```
+</CodeGroup>
+
+## Model Versions
+
+Model versions represent specific iterations or snapshots of a registered model. Each version can have its own metadata, metrics, and artifacts.
+
+### List Model Versions
+
+List all versions of a registered model:
+
+```bash
+bin/uc model_version list --full_name <full_name>
+```
+
+<ParamField path="--full_name" type="string" required>
+  The full name of the registered model in the format `catalog_name.schema_name.model_name`.
+</ParamField>
+
+### Example
+
+```bash
+bin/uc model_version list --full_name ml_catalog.models.fraud_detector
+```
+
+## Complete Workflow Example
+
+Here's a typical workflow for working with models in Unity Catalog:
+
+<Steps>
+  <Step title="Create catalog and schema for ML">
+    ```bash
+    bin/uc catalog create \
+      --name ml_platform \
+      --comment "Machine learning models and experiments"
+    
+    bin/uc schema create \
+      --catalog ml_platform \
+      --name production \
+      --comment "Production ML models"
+    ```
+  </Step>
+  
+  <Step title="Train and register model with MLflow">
+    Use MLflow to train and register your model:
+    
+    ```python
+    import mlflow
+    
+    # Set Unity Catalog as the registry
+    mlflow.set_registry_uri("uc")
+    
+    # Train your model
+    with mlflow.start_run():
+        # ... training code ...
+        mlflow.sklearn.log_model(
+            model,
+            "model",
+            registered_model_name="ml_platform.production.fraud_detector"
+        )
+    ```
+  </Step>
+  
+  <Step title="List registered models">
+    ```bash
+    bin/uc registered_model list \
+      --catalog ml_platform \
+      --schema production
+    ```
+  </Step>
+  
+  <Step title="Get model details">
+    ```bash
+    bin/uc registered_model get \
+      --full_name ml_platform.production.fraud_detector
+    ```
+  </Step>
+  
+  <Step title="List model versions">
+    ```bash
+    bin/uc model_version list \
+      --full_name ml_platform.production.fraud_detector
+    ```
+  </Step>
+  
+  <Step title="Update model metadata">
+    ```bash
+    bin/uc registered_model update \
+      --full_name ml_platform.production.fraud_detector \
+      --comment "Fraud detection model - improved accuracy with new features"
+    ```
+  </Step>
+</Steps>
+
+## Working with MLflow
+
+<Info>
+For full model lifecycle management (create, update, delete, versioning), use MLflow with Unity Catalog as the model registry.
+</Info>
+
+### Setting Up MLflow with Unity Catalog
+
+<CodeGroup>
+```python Python
+import mlflow
+
+# Configure MLflow to use Unity Catalog
+mlflow.set_registry_uri("uc")
+mlflow.set_tracking_uri("http://localhost:8080")
+```
+
+```bash Environment Variables
+export MLFLOW_TRACKING_URI="http://localhost:8080"
+export MLFLOW_REGISTRY_URI="uc"
+```
+</CodeGroup>
+
+### Registering a Model
+
+```python
+import mlflow
+import mlflow.sklearn
+from sklearn.ensemble import RandomForestClassifier
+
+# Train your model
+model = RandomForestClassifier()
+model.fit(X_train, y_train)
+
+# Log and register the model
+with mlflow.start_run():
+    mlflow.sklearn.log_model(
+        model,
+        "model",
+        registered_model_name="ml_catalog.models.classifier"
+    )
+    
+    # Log metrics
+    mlflow.log_metric("accuracy", 0.95)
+    mlflow.log_metric("f1_score", 0.93)
+```
+
+### Loading a Model
+
+```python
+import mlflow.pyfunc
+
+# Load a specific version
+model = mlflow.pyfunc.load_model(
+    "models:/ml_catalog.models.classifier/1"
+)
+
+# Make predictions
+predictions = model.predict(X_test)
+```
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Model Versioning">
+    Track different versions of your models as they evolve:
+    
+    ```bash
+    # List all versions to see model evolution
+    bin/uc model_version list \
+      --full_name ml_platform.models.recommender
+    
+    # Update description to document changes
+    bin/uc registered_model update \
+      --full_name ml_platform.models.recommender \
+      --comment "Version 3: Added collaborative filtering"
+    ```
+  </Accordion>
+  
+  <Accordion title="Model Governance">
+    Use Unity Catalog to govern access to ML models:
+    
+    ```bash
+    # Organize models by environment
+    bin/uc schema create --catalog ml --name dev
+    bin/uc schema create --catalog ml --name staging
+    bin/uc schema create --catalog ml --name production
+    
+    # List production models
+    bin/uc registered_model list --catalog ml --schema production
+    ```
+  </Accordion>
+  
+  <Accordion title="Model Discovery">
+    Help teams discover and inspect available models:
+    
+    ```bash
+    # Browse models by domain
+    bin/uc registered_model list --catalog ml --schema fraud_detection
+    bin/uc registered_model list --catalog ml --schema recommendations
+    bin/uc registered_model list --catalog ml --schema forecasting
+    ```
+  </Accordion>
+  
+  <Accordion title="Multi-Team Collaboration">
+    Separate models by team or project:
+    
+    ```bash
+    # Team-specific schemas
+    bin/uc schema create --catalog ml --name team_data_science
+    bin/uc schema create --catalog ml --name team_ml_engineering
+    
+    # List team models
+    bin/uc registered_model list \
+      --catalog ml \
+      --schema team_data_science
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Model Organization">
+    - Create separate schemas for different environments (dev, staging, prod)
+    - Group related models in the same schema
+    - Use consistent naming conventions across models
+    - Document model purpose and use cases in comments
+  </Accordion>
+  
+  <Accordion title="Naming Conventions">
+    - Use descriptive names that indicate model purpose
+    - Include model type in name (e.g., `fraud_detector_rf`, `churn_predictor_xgb`)
+    - Use lowercase with underscores
+    - Avoid version numbers in names (use model versions instead)
+  </Accordion>
+  
+  <Accordion title="Model Metadata">
+    - Always provide meaningful comments describing the model
+    - Document training data, features, and target variable
+    - Note any special requirements or dependencies
+    - Keep metadata updated as models evolve
+  </Accordion>
+  
+  <Accordion title="Version Management">
+    - Use model versions to track model evolution
+    - Don't delete old versions immediately (retain for rollback)
+    - Document what changed between versions
+    - Use MLflow to manage version lifecycle
+  </Accordion>
+  
+  <Accordion title="Access Control">
+    - Restrict write access to production schemas
+    - Use Unity Catalog permissions to control model access
+    - Separate training/development from serving environments
+    - Audit model access patterns regularly
+  </Accordion>
+</AccordionGroup>
+
+## Model Lifecycle with Unity Catalog
+
+<Steps>
+  <Step title="Development">
+    Develop and experiment with models in development schemas:
+    ```bash
+    bin/uc registered_model list --catalog ml --schema dev
+    ```
+  </Step>
+  
+  <Step title="Staging">
+    Promote models to staging for validation:
+    ```python
+    # Register new version in staging
+    mlflow.register_model(
+        model_uri="runs:/run-id/model",
+        name="ml.staging.my_model"
+    )
+    ```
+  </Step>
+  
+  <Step title="Production">
+    Move validated models to production:
+    ```python
+    # Register in production
+    mlflow.register_model(
+        model_uri="models:/ml.staging.my_model/1",
+        name="ml.production.my_model"
+    )
+    ```
+  </Step>
+  
+  <Step title="Monitoring">
+    Track model versions and performance:
+    ```bash
+    bin/uc model_version list --full_name ml.production.my_model
+    ```
+  </Step>
+</Steps>
+
+## Common Patterns
+
+### Environment-Based Organization
+
+```bash
+# Create environment schemas
+bin/uc schema create --catalog ml --name dev --comment "Development models"
+bin/uc schema create --catalog ml --name staging --comment "Staging models"
+bin/uc schema create --catalog ml --name prod --comment "Production models"
+
+# List models by environment
+bin/uc registered_model list --catalog ml --schema prod
+```
+
+### Domain-Based Organization
+
+```bash
+# Create domain schemas
+bin/uc schema create --catalog ml --name vision --comment "Computer vision models"
+bin/uc schema create --catalog ml --name nlp --comment "NLP models"
+bin/uc schema create --catalog ml --name tabular --comment "Tabular ML models"
+```
+
+### Team-Based Organization
+
+```bash
+# Create team schemas
+bin/uc schema create --catalog ml --name ds_team --comment "Data science team"
+bin/uc schema create --catalog ml --name mle_team --comment "ML engineering team"
+```
+
+## Integration Points
+
+<CardGroup cols={2}>
+  <Card title="MLflow" icon="flask" href="https://mlflow.org/docs/latest/index.html">
+    Full model lifecycle management with MLflow
+  </Card>
+  <Card title="Model Training" icon="brain">
+    Use any ML framework (scikit-learn, TensorFlow, PyTorch)
+  </Card>
+  <Card title="Model Serving" icon="server">
+    Deploy models from Unity Catalog
+  </Card>
+  <Card title="Governance" icon="shield">
+    Apply access controls and audit model usage
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="MLflow Documentation" icon="book" href="https://mlflow.org/docs/latest/index.html">
+    Learn about MLflow model registry
+  </Card>
+  <Card title="Models Guide" icon="graduation-cap" href="/usage/models">
+    Deep dive into Unity Catalog models
+  </Card>
+  <Card title="Function Management" icon="function" href="/cli/functions">
+    Work with UDFs and functions
+  </Card>
+  <Card title="CLI Overview" icon="terminal" href="/cli/overview">
+    Back to CLI overview
+  </Card>
+</CardGroup>

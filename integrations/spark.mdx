@@ -1,0 +1,462 @@
+---
+title: Apache Spark Integration
+description: Create and query Unity Catalog tables with Apache Spark for data engineering and machine learning
+---
+
+[Apache Spark](http://spark.apache.org) is a multi-language engine for executing data engineering, data science, and machine learning on single-node machines or clusters.
+
+## Why Unity Catalog with Spark?
+
+Integrating Apache Spark with Unity Catalog provides significant advantages:
+
+<CardGroup cols={2}>
+  <Card title="Unified Governance" icon="shield">
+    Fine-grained access control, automated lineage tracking, and centralized metadata management
+  </Card>
+  <Card title="Credential Vending" icon="key">
+    Securely access data without configuring credentials for each table
+  </Card>
+  <Card title="Decoupled Storage" icon="layer-group">
+    Separate business logic from file paths and storage locations
+  </Card>
+  <Card title="Multi-Format Support" icon="database">
+    Easy access to Delta Lake, Parquet, CSV, and other formats
+  </Card>
+</CardGroup>
+
+## Prerequisites
+
+<Warning>
+  Unity Catalog requires **Apache Spark 3.5.3+** and **Delta Lake 3.2.1+** for full compatibility.
+</Warning>
+
+## Download and Install
+
+### Download Apache Spark
+
+Download Apache Spark 3.5.3 or later:
+
+```bash
+curl -O https://archive.apache.org/dist/spark/spark-3.5.3/spark-3.5.3-bin-hadoop3.tgz
+tar xzf spark-3.5.3-bin-hadoop3.tgz
+cd spark-3.5.3-bin-hadoop3
+```
+
+Alternatively, [download from the Apache Spark website](https://spark.apache.org/downloads.html).
+
+### Configure Cloud Storage (Optional)
+
+To use Unity Catalog with cloud object storage, configure the Unity Catalog server properties in `etc/conf/server.properties`:
+
+<Tabs>
+  <Tab title="AWS S3">
+    ```properties
+    ## S3 Storage Config
+    s3.bucketPath.0=<S3_BUCKET>
+    s3.region.0=<S3_REGION>
+    s3.awsRoleArn.0=<S3_ROLE>
+    # Optional (uses DefaultCredentialsProviderChain if blank)
+    s3.accessKey.0=<ACCESS_KEY>
+    s3.secretKey.0=<SECRET_KEY>
+    ```
+  </Tab>
+  
+  <Tab title="Azure ADLS Gen2">
+    ```properties
+    ## ADLS Storage Config
+    adls.storageAccountName.0=<STORAGE_ACCOUNT_NAME>
+    adls.tenantId.0=<TENANT_ID>
+    adls.clientId.0=<CLIENT_ID>
+    adls.clientSecret.0=<CLIENT_SECRET>
+    ```
+  </Tab>
+  
+  <Tab title="Google Cloud Storage">
+    ```properties
+    ## GCS Storage Config
+    gcs.bucketPath.0=<GCS_BUCKET>
+    # Optional (uses Application Default Credentials if blank)
+    gcs.jsonKeyFilePath.0=/path/to/key.json
+    ```
+  </Tab>
+</Tabs>
+
+### Start Unity Catalog Server
+
+If the UC server isn't already running, start it:
+
+```bash
+cd unitycatalog/
+bin/start-uc-server
+```
+
+## Local Development
+
+Run Spark SQL or PySpark locally against your Unity Catalog server.
+
+<Tabs>
+  <Tab title="Spark SQL">
+    ```bash
+    bin/spark-sql --name "local-uc-test" \
+      --master "local[*]" \
+      --packages "io.delta:delta-spark_2.13:4.0.0,io.unitycatalog:unitycatalog-spark_2.13:0.3.0" \
+      --conf "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension" \
+      --conf "spark.sql.catalog.unity=io.unitycatalog.spark.UCSingleCatalog" \
+      --conf "spark.sql.catalog.unity.uri=http://localhost:8080" \
+      --conf "spark.sql.catalog.unity.token=" \
+      --conf "spark.sql.defaultCatalog=unity"
+    ```
+  </Tab>
+  
+  <Tab title="PySpark">
+    ```bash
+    bin/pyspark --name "local-uc-test" \
+      --master "local[*]" \
+      --packages "io.delta:delta-spark_2.13:4.0.0,io.unitycatalog:unitycatalog-spark_2.13:0.3.0" \
+      --conf "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension" \
+      --conf "spark.sql.catalog.unity=io.unitycatalog.spark.UCSingleCatalog" \
+      --conf "spark.sql.catalog.unity.uri=http://localhost:8080" \
+      --conf "spark.sql.catalog.unity.token=" \
+      --conf "spark.sql.defaultCatalog=unity"
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  The first run may take a few minutes to download dependencies.
+</Note>
+
+### Configuration Details
+
+<ParamField path="--packages" type="string" required>
+  Delta Spark and Unity Catalog Spark packages
+</ParamField>
+
+<ParamField path="spark.sql.catalog.unity.uri" type="string" required>
+  Unity Catalog server endpoint
+</ParamField>
+
+<ParamField path="spark.sql.catalog.unity.token" type="string">
+  Authentication token (empty for local dev, required for production)
+</ParamField>
+
+<ParamField path="spark.sql.defaultCatalog" type="string" required>
+  Default catalog name to use
+</ParamField>
+
+<Info>
+  **Naming Convention**: Unity Catalog uses three-part naming: `catalog.schema.table`. You can use either `SELECT * FROM unity.default.marksheet` or `SELECT * FROM default.marksheet` if `unity` is the default catalog.
+</Info>
+
+## Cloud Storage Configuration
+
+For cloud object storage, include the appropriate Hadoop packages:
+
+<Tabs>
+  <Tab title="AWS S3">
+    ```bash
+    bin/spark-sql --name "s3-uc-test" \
+      --master "local[*]" \
+      --packages "org.apache.hadoop:hadoop-aws:3.4.1,io.delta:delta-spark_2.13:4.0.0,io.unitycatalog:unitycatalog-spark_2.13:0.3.0" \
+      --conf "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension" \
+      --conf "spark.hadoop.fs.s3.impl=org.apache.hadoop.fs.s3a.S3AFileSystem" \
+      --conf "spark.sql.catalog.unity=io.unitycatalog.spark.UCSingleCatalog" \
+      --conf "spark.sql.catalog.unity.uri=http://localhost:8080" \
+      --conf "spark.sql.catalog.unity.token=" \
+      --conf "spark.sql.defaultCatalog=unity"
+    ```
+  </Tab>
+  
+  <Tab title="Azure ADLS Gen2">
+    ```bash
+    bin/spark-sql --name "azure-uc-test" \
+      --master "local[*]" \
+      --packages "org.apache.hadoop:hadoop-azure:3.3.6,io.delta:delta-spark_2.13:4.0.0,io.unitycatalog:unitycatalog-spark_2.13:0.3.0" \
+      --conf "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension" \
+      --conf "spark.sql.catalog.unity=io.unitycatalog.spark.UCSingleCatalog" \
+      --conf "spark.sql.catalog.unity.uri=http://localhost:8080" \
+      --conf "spark.sql.catalog.unity.token=" \
+      --conf "spark.sql.defaultCatalog=unity"
+    ```
+  </Tab>
+  
+  <Tab title="Google Cloud Storage">
+    ```bash
+    bin/spark-sql --name "gcs-uc-test" \
+      --master "local[*]" \
+      --jars "https://repo1.maven.org/maven2/com/google/cloud/bigdataoss/gcs-connector/3.0.2/gcs-connector-3.0.2-shaded.jar" \
+      --packages "io.delta:delta-spark_2.13:4.0.0,io.unitycatalog:unitycatalog-spark_2.13:0.3.0" \
+      --conf "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension" \
+      --conf "spark.hadoop.fs.gs.impl=com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem" \
+      --conf "spark.hadoop.fs.AbstractFileSystem.gs.impl=com.google.cloud.hadoop.fs.gcs.GoogleHadoopFS" \
+      --conf "spark.sql.catalog.unity=io.unitycatalog.spark.UCSingleCatalog" \
+      --conf "spark.sql.catalog.unity.uri=http://localhost:8080" \
+      --conf "spark.sql.catalog.unity.token=" \
+      --conf "spark.sql.defaultCatalog=unity"
+    ```
+  </Tab>
+</Tabs>
+
+## Query Unity Catalog
+
+### Show Schemas and Tables
+
+<CodeGroup>
+```sql Spark SQL
+-- Show schemas
+SHOW SCHEMAS;
+
+-- Show tables
+SHOW TABLES IN default;
+```
+
+```python PySpark
+# Show schemas
+spark.sql("SHOW SCHEMAS").show()
+
+# Show tables
+spark.sql("SHOW TABLES IN default").show()
+```
+</CodeGroup>
+
+Output:
+```
++---------+-----------------+-----------+
+|namespace|        tableName|isTemporary|
++---------+-----------------+-----------+
+|  default|        marksheet|      false|
+|  default|marksheet_uniform|      false|
+|  default|          numbers|      false|
+|  default|   user_countries|      false|
++---------+-----------------+-----------+
+```
+
+### Query Tables
+
+<CodeGroup>
+```sql Spark SQL
+SELECT * FROM default.marksheet LIMIT 5;
+```
+
+```python PySpark
+spark.sql("SELECT * FROM default.marksheet LIMIT 5").show()
+```
+</CodeGroup>
+
+Output:
+```
++---+----------+-----+
+| id|      name|marks|
++---+----------+-----+
+|  1|nWYHawtqUw|  930|
+|  2|uvOzzthsLV|  166|
+|  3|WIAehuXWkv|  170|
+|  4|wYCSvnJKTo|  709|
+|  5|VsslXsUIDZ|  993|
++---+----------+-----+
+```
+
+## CRUD Operations
+
+### Create Schema
+
+<CodeGroup>
+```sql Spark SQL
+CREATE SCHEMA demo;
+SHOW SCHEMAS;
+```
+
+```python PySpark
+spark.sql("CREATE SCHEMA demo")
+spark.sql("SHOW SCHEMAS").show()
+```
+</CodeGroup>
+
+### Create Table
+
+<CodeGroup>
+```sql Spark SQL
+CREATE TABLE demo.mytable (id INT, desc STRING)
+USING delta
+LOCATION '/tmp/tables/mytable';
+```
+
+```python PySpark
+spark.sql("""
+  CREATE TABLE demo.mytable (id INT, desc STRING)
+  USING delta
+  LOCATION '/tmp/tables/mytable'
+""")
+```
+</CodeGroup>
+
+### Insert Data
+
+<CodeGroup>
+```sql Spark SQL
+INSERT INTO demo.mytable VALUES (1, "test 1");
+INSERT INTO demo.mytable VALUES (2, "test 2");
+INSERT INTO demo.mytable VALUES (3, "test 3");
+INSERT INTO demo.mytable VALUES (4, "test 4");
+
+SELECT * FROM demo.mytable;
+```
+
+```python PySpark
+spark.sql("INSERT INTO demo.mytable VALUES (1, 'test 1')")
+spark.sql("INSERT INTO demo.mytable VALUES (2, 'test 2')")
+spark.sql("INSERT INTO demo.mytable VALUES (3, 'test 3')")
+spark.sql("INSERT INTO demo.mytable VALUES (4, 'test 4')")
+
+spark.sql("SELECT * FROM demo.mytable").show()
+```
+</CodeGroup>
+
+### Update Data
+
+<CodeGroup>
+```sql Spark SQL
+UPDATE demo.mytable SET id = 5 WHERE id = 4;
+```
+
+```python PySpark
+spark.sql("UPDATE demo.mytable SET id = 5 WHERE id = 4")
+```
+</CodeGroup>
+
+### Delete Data
+
+<CodeGroup>
+```sql Spark SQL
+DELETE FROM demo.mytable WHERE id = 5;
+```
+
+```python PySpark
+spark.sql("DELETE FROM demo.mytable WHERE id = 5")
+```
+</CodeGroup>
+
+### Merge Tables
+
+Create a source table and merge it into the target:
+
+<CodeGroup>
+```sql Spark SQL
+-- Create source table
+CREATE TABLE demo.srctable (id INT, desc STRING)
+USING delta
+LOCATION '/tmp/tables/srctable';
+
+INSERT INTO demo.srctable VALUES (3, "updated");
+INSERT INTO demo.srctable VALUES (4, "inserted");
+
+-- Merge operation
+MERGE INTO demo.mytable AS target
+USING demo.srctable AS source
+  ON target.id = source.id
+WHEN MATCHED THEN
+  UPDATE SET *
+WHEN NOT MATCHED THEN
+  INSERT *;
+
+-- Check results
+SELECT * FROM demo.mytable;
+```
+
+```python PySpark
+# Create source table
+spark.sql("""
+  CREATE TABLE demo.srctable (id INT, desc STRING)
+  USING delta
+  LOCATION '/tmp/tables/srctable'
+""")
+
+spark.sql("INSERT INTO demo.srctable VALUES (3, 'updated')")
+spark.sql("INSERT INTO demo.srctable VALUES (4, 'inserted')")
+
+# Merge operation
+spark.sql("""
+  MERGE INTO demo.mytable AS target
+  USING demo.srctable AS source
+    ON target.id = source.id
+  WHEN MATCHED THEN
+    UPDATE SET *
+  WHEN NOT MATCHED THEN
+    INSERT *
+""")
+
+# Check results
+spark.sql("SELECT * FROM demo.mytable").show()
+```
+</CodeGroup>
+
+Merge results:
+```
++---+--------+
+| id|    desc|
++---+--------+
+|  1|  test 1|
+|  2|  test 2|
+|  3| updated|
+|  4|inserted|
++---+--------+
+```
+
+### Drop Table
+
+<CodeGroup>
+```sql Spark SQL
+DROP TABLE demo.srctable;
+SHOW TABLES IN default;
+```
+
+```python PySpark
+spark.sql("DROP TABLE demo.srctable")
+spark.sql("SHOW TABLES IN default").show()
+```
+</CodeGroup>
+
+<Warning>
+  `DROP TABLE` removes the table from Unity Catalog but does not delete the underlying data files.
+</Warning>
+
+## Additional Configuration
+
+<Note>
+  **Spark Session Catalog**: Depending on your use case, you may need to configure the Spark session catalog:
+  
+  ```bash
+  --conf "spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog"
+  ```
+</Note>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Managed Tables" icon="database">
+    Let Unity Catalog manage table locations for simplified governance
+  </Card>
+  <Card title="Organize with Schemas" icon="folder-tree">
+    Create schemas for bronze, silver, gold layers or by team/project
+  </Card>
+  <Card title="Leverage Credential Vending" icon="key">
+    Avoid hardcoding cloud credentials in Spark configurations
+  </Card>
+  <Card title="Enable Lineage Tracking" icon="diagram-project">
+    Track data lineage automatically through Unity Catalog
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="DuckDB" icon="database" href="/integrations/duckdb">
+    Query tables with DuckDB
+  </Card>
+  <Card title="Volumes" icon="folder" href="/usage/volumes">
+    Manage unstructured data
+  </Card>
+  <Card title="Functions" icon="function" href="/usage/functions">
+    Register UDFs in Unity Catalog
+  </Card>
+</CardGroup>

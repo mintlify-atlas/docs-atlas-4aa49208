@@ -1,0 +1,327 @@
+---
+title: Server Configuration
+description: Configure Unity Catalog server settings, storage, and metastore
+---
+
+The Unity Catalog server can be configured through property files located in the `etc/conf/` directory. This guide covers all available configuration options.
+
+## Configuration Files
+
+Unity Catalog uses the following configuration files:
+
+- **`etc/conf/server.properties`**: Main server configuration
+- **`etc/conf/hibernate.properties`**: Database connection settings
+- **`etc/conf/server.log4j2.properties`**: Logging configuration
+
+## Server Configuration
+
+The main server configuration file is located at `etc/conf/server.properties`.
+
+### Environment Settings
+
+```properties
+server.env=dev
+```
+
+<ParamField path="server.env" type="string" default="dev">
+  Server environment mode:
+  - `dev`: Uses persistent H2 database at `etc/db/h2db.mv.db`
+  - `test`: Uses in-memory H2 database (data not persisted)
+</ParamField>
+
+<Warning>
+When set to `test`, all metadata changes are lost when the server stops. Only use for testing purposes.
+</Warning>
+
+### Authentication Configuration
+
+Configure external identity providers for authentication:
+
+```properties
+server.authorization=disable
+server.authorization-url=
+server.token-url=
+server.client-id=
+server.client-secret=
+server.redirect-port=
+server.cookie-timeout=P5D
+```
+
+<ParamField path="server.authorization" type="string" default="disable">
+  Enable or disable authentication: `enable` or `disable`
+</ParamField>
+
+<ParamField path="server.authorization-url" type="string">
+  OAuth authorization URL (e.g., `https://accounts.google.com/o/oauth2/auth`)
+</ParamField>
+
+<ParamField path="server.token-url" type="string">
+  OAuth token endpoint (e.g., `https://oauth2.googleapis.com/token`)
+</ParamField>
+
+<ParamField path="server.client-id" type="string">
+  OAuth client ID from your identity provider
+</ParamField>
+
+<ParamField path="server.client-secret" type="string">
+  OAuth client secret from your identity provider
+</ParamField>
+
+<ParamField path="server.cookie-timeout" type="string" default="P5D">
+  Session cookie timeout in ISO 8601 duration format:
+  - `P5D` = 5 days
+  - `PT5H` = 5 hours
+  - `PT5M` = 5 minutes
+  - `PT5S` = 5 seconds
+</ParamField>
+
+#### Example: Google Authentication
+
+```properties
+server.authorization=enable
+server.authorization-url=https://accounts.google.com/o/oauth2/auth
+server.token-url=https://oauth2.googleapis.com/token
+server.client-id=111122223333-abab1212cdcd3434.apps.googleusercontent.com
+server.client-secret=GOCSPX-ababfoobarcdcd-5q
+```
+
+See [Authentication](/server/authentication) for detailed setup instructions.
+
+### Feature Flags
+
+```properties
+server.managed-table.enabled=false
+```
+
+<ParamField path="server.managed-table.enabled" type="boolean" default="false">
+  Enable experimental MANAGED table support
+</ParamField>
+
+## Storage Configuration
+
+Configure cloud storage credentials for accessing external tables and volumes.
+
+### AWS S3 Configuration
+
+#### Master Role ARN (Recommended)
+
+```properties
+aws.masterRoleArn=
+aws.accessKey=
+aws.secretKey=
+aws.region=
+```
+
+<ParamField path="aws.masterRoleArn" type="string">
+  Master IAM role ARN for AWS credential vending. Should match the ARN the UC server runs as.
+</ParamField>
+
+<ParamField path="aws.accessKey" type="string">
+  AWS access key for the master role (optional, uses DefaultCredentialsProvider if not set)
+</ParamField>
+
+<ParamField path="aws.secretKey" type="string">
+  AWS secret key for the master role
+</ParamField>
+
+<ParamField path="aws.region" type="string">
+  AWS region for the deployment
+</ParamField>
+
+#### Per-Bucket Configuration (Legacy)
+
+Configure credentials for specific S3 buckets:
+
+```properties
+s3.bucketPath.0=s3://my-bucket
+s3.region.0=us-east-2
+s3.awsRoleArn.0=arn:aws:iam::123456789012:role/MyRole
+s3.accessKey.0=AKIAIOSFODNN7EXAMPLE
+s3.secretKey.0=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+s3.sessionToken.0=
+```
+
+<Note>
+You can configure multiple buckets by incrementing the index (`.0`, `.1`, `.2`, etc.).
+</Note>
+
+#### Multiple Bucket Example
+
+```properties
+# Bucket 1
+s3.bucketPath.0=s3://production-data
+s3.region.0=us-east-1
+s3.accessKey.0=AKIAEXAMPLE1
+s3.secretKey.0=secretkey1
+
+# Bucket 2
+s3.bucketPath.1=s3://staging-data
+s3.region.1=us-west-2
+s3.accessKey.1=AKIAEXAMPLE2
+s3.secretKey.1=secretkey2
+```
+
+### Azure ADLS Configuration
+
+```properties
+adls.storageAccountName.0=mystorageaccount
+adls.tenantId.0=12345678-1234-1234-1234-123456789012
+adls.clientId.0=87654321-4321-4321-4321-210987654321
+adls.clientSecret.0=my-client-secret
+```
+
+<ParamField path="adls.storageAccountName.{i}" type="string">
+  Azure Storage account name
+</ParamField>
+
+<ParamField path="adls.tenantId.{i}" type="string">
+  Azure Active Directory tenant ID
+</ParamField>
+
+<ParamField path="adls.clientId.{i}" type="string">
+  Azure service principal client ID
+</ParamField>
+
+<ParamField path="adls.clientSecret.{i}" type="string">
+  Azure service principal client secret
+</ParamField>
+
+### Google Cloud Storage Configuration
+
+```properties
+gcs.bucketPath.0=gs://my-gcs-bucket
+gcs.jsonKeyFilePath.0=/path/to/service-account-key.json
+```
+
+<ParamField path="gcs.bucketPath.{i}" type="string">
+  GCS bucket path (e.g., `gs://bucket-name`)
+</ParamField>
+
+<ParamField path="gcs.jsonKeyFilePath.{i}" type="string">
+  Path to GCP service account JSON key file (optional, uses Application Default Credentials if not set)
+</ParamField>
+
+## Database Configuration
+
+The backend metastore database is configured in `etc/conf/hibernate.properties`.
+
+### Default H2 Database
+
+```properties
+hibernate.connection.driver_class=org.h2.Driver
+hibernate.connection.url=jdbc:h2:file:./etc/db/h2db;DB_CLOSE_DELAY=-1
+hibernate.hbm2ddl.auto=update
+hibernate.show_sql=false
+```
+
+### MySQL Configuration
+
+<Steps>
+  <Step title="Download MySQL JDBC driver">
+    Download the [MySQL Connector/J](https://dev.mysql.com/downloads/connector/j/) driver.
+  </Step>
+
+  <Step title="Update hibernate.properties">
+    Configure the MySQL connection:
+    
+    ```properties
+    hibernate.connection.driver_class=com.mysql.cj.jdbc.Driver
+    hibernate.connection.url=jdbc:mysql://localhost:3306/ucdb
+    hibernate.connection.user=uc_default_user
+    hibernate.connection.password=uc_default_password
+    ```
+  </Step>
+
+  <Step title="Add JDBC driver to classpath">
+    Edit `jars/classpath` and add the path to your MySQL JDBC driver JAR file.
+  </Step>
+</Steps>
+
+#### Start MySQL with Docker
+
+```bash
+docker-compose -f etc/db/mysql-example.yml up -d
+```
+
+### PostgreSQL Configuration
+
+<Steps>
+  <Step title="Download PostgreSQL JDBC driver">
+    Download the [PostgreSQL JDBC driver](https://jdbc.postgresql.org/download/).
+  </Step>
+
+  <Step title="Update hibernate.properties">
+    Configure the PostgreSQL connection:
+    
+    ```properties
+    hibernate.connection.driver_class=org.postgresql.Driver
+    hibernate.connection.url=jdbc:postgresql://localhost:5432/ucdb
+    hibernate.connection.user=uc_default_user
+    hibernate.connection.password=uc_default_password
+    ```
+  </Step>
+
+  <Step title="Add JDBC driver to classpath">
+    Edit `jars/classpath` and add the path to your PostgreSQL JDBC driver JAR file.
+  </Step>
+</Steps>
+
+#### Start PostgreSQL with Docker
+
+```bash
+docker-compose -f etc/db/postgres-example.yml up -d
+```
+
+## Logging Configuration
+
+Server logs are located at `etc/logs/server.log`. Configure logging behavior in `etc/conf/server.log4j2.properties`.
+
+### Common Logging Settings
+
+```properties
+# Log level
+logger.level=INFO
+
+# SQL logging
+hibernate.show_sql=false
+org.hibernate.SQL=INFO
+org.hibernate.type.descriptor.sql.BasicBinder=TRACE
+```
+
+<Note>
+Set `hibernate.show_sql=true` to see all SQL queries in the logs (useful for debugging).
+</Note>
+
+## Environment Variables
+
+You can override configuration properties using environment variables:
+
+```bash
+export JAVA_HOME=/path/to/jdk-17
+export UC_SERVER_PORT=8080
+```
+
+## Verifying Configuration
+
+After modifying configuration files, restart the server:
+
+```bash
+bin/start-uc-server
+```
+
+Check the logs for any configuration errors:
+
+```bash
+tail -f etc/logs/server.log
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="lock" href="/server/authentication">
+    Set up authentication with external identity providers
+  </Card>
+  <Card title="Deployment" icon="rocket" href="/server/deployment">
+    Deploy Unity Catalog to production
+  </Card>
+</CardGroup>

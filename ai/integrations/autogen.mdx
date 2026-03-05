@@ -1,0 +1,426 @@
+---
+title: AutoGen Integration
+description: Use Unity Catalog functions as tools in AutoGen multi-agent workflows
+---
+
+Integrate Unity Catalog functions with AutoGen to build multi-agent conversational AI systems.
+
+<Note>
+This integration requires AutoGen `autogen-agentchat>=0.4.0`. The legacy APIs are not supported.
+</Note>
+
+## Installation
+
+Install the Unity Catalog AutoGen integration from PyPI:
+
+```bash
+pip install unitycatalog-autogen
+```
+
+For **Databricks Unity Catalog**, install with the optional databricks package:
+
+```bash
+pip install unitycatalog-autogen[databricks]
+```
+
+<Note>
+The official Microsoft AutoGen package has been renamed from `pyautogen` to `autogen-agentchat`. See the [official clarification](https://github.com/microsoft/autogen/discussions/4217) for details.
+</Note>
+
+## Setup
+
+<Steps>
+  <Step title="Create a Unity Catalog Client">
+    Initialize the `UnitycatalogFunctionClient`:
+
+    ```python
+    from unitycatalog.ai.core.client import UnitycatalogFunctionClient
+    from unitycatalog.client import ApiClient, Configuration
+
+    config = Configuration(
+        host="http://localhost:8080/api/2.1/unity-catalog"
+    )
+
+    api_client = ApiClient(configuration=config)
+    uc_client = UnitycatalogFunctionClient(api_client=api_client)
+
+    CATALOG = "my_catalog"
+    SCHEMA = "my_schema"
+    ```
+  </Step>
+
+  <Step title="Create Unity Catalog Functions">
+    Define functions with type hints and docstrings:
+
+    ```python
+    from typing import Annotated
+
+    def get_temperature(location: Annotated[str, "Location to get weather for"]) -> str:
+        """
+        Returns the current temperature from a given location in Celsius.
+        """
+        return "31.9 C"
+
+    def temp_c_to_f(celsius: Annotated[str, "Temperature in Celsius"]) -> float:
+        """
+        Converts temperature from Celsius to Fahrenheit.
+        """
+        celsius_float = float(celsius.replace(' C', ''))
+        fahrenheit = (9/5 * celsius_float) + 32
+        return fahrenheit
+
+    # Create functions in UC
+    for func in [get_temperature, temp_c_to_f]:
+        uc_client.create_python_function(
+            func=func,
+            catalog=CATALOG,
+            schema=SCHEMA
+        )
+    ```
+  </Step>
+
+  <Step title="Create UCFunctionToolkit">
+    Convert UC functions to AutoGen tools:
+
+    ```python
+    from unitycatalog.ai.autogen.toolkit import UCFunctionToolkit
+
+    function_names = [
+        f"{CATALOG}.{SCHEMA}.get_temperature",
+        f"{CATALOG}.{SCHEMA}.temp_c_to_f"
+    ]
+
+    toolkit = UCFunctionToolkit(
+        function_names=function_names,
+        client=uc_client
+    )
+
+    # Get AutoGen-compatible tools
+    tools = toolkit.tools
+    ```
+  </Step>
+</Steps>
+
+## Using with AutoGen Agents
+
+Create an AssistantAgent with UC function tools:
+
+```python
+import os
+from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.messages import TextMessage
+from autogen_core import CancellationToken
+from autogen_ext.models.openai import OpenAIChatCompletionClient
+
+# Configure model client
+model_client = OpenAIChatCompletionClient(
+    model="gpt-4o",
+    api_key=os.environ["OPENAI_API_KEY"],
+    seed=222,
+    temperature=0
+)
+
+# Create agent with UC tools
+weather_agent = AssistantAgent(
+    name="assistant",
+    system_message="You are a helpful AI assistant specializing in weather. "
+                   "Use available tools to perform calculations and retrieve data.",
+    model_client=model_client,
+    tools=tools,
+    reflect_on_tool_use=False
+)
+
+# Use the agent
+response = await weather_agent.on_messages(
+    [TextMessage(content="What is 31.9°C in Fahrenheit?", source="User")],
+    CancellationToken()
+)
+
+print(response.chat_message)
+```
+
+## Direct Tool Testing
+
+Test tools before integrating with agents:
+
+```python
+my_tool = tools[0]
+
+# Call the tool directly
+result = my_tool.fn(**{"location": "San Francisco"})
+print(result)
+```
+
+## Databricks Unity Catalog
+
+<Note>
+For Databricks-managed Unity Catalog, follow the [authentication instructions](https://docs.databricks.com/en/dev-tools/cli/authentication.html) and ensure your access token has workspace-level privileges.
+</Note>
+
+### Client Setup
+
+```python
+from unitycatalog.ai.core.base import set_uc_function_client
+from unitycatalog.ai.core.databricks import DatabricksFunctionClient
+
+client = DatabricksFunctionClient()
+set_uc_function_client(client)
+```
+
+### Create Python UDFs
+
+```python
+from typing import Annotated
+
+CATALOG = "catalog"
+SCHEMA = "schema"
+
+def get_temperature(location: Annotated[str, "Location to get weather for"]) -> str:
+    """Returns current temperature in Celsius."""
+    return "31.9 C"
+
+def temp_c_to_f(celsius: Annotated[str, "Temperature in Celsius"]) -> float:
+    """Converts Celsius to Fahrenheit."""
+    celsius_float = float(celsius.replace(' C', ''))
+    return (9/5 * celsius_float) + 32
+
+# Create in Unity Catalog
+for func in [get_temperature, temp_c_to_f]:
+    client.create_python_function(
+        func=func,
+        catalog=CATALOG,
+        schema=SCHEMA
+    )
+```
+
+## UCFunctionToolkit API
+
+The `UCFunctionToolkit` converts UC functions to AutoGen `UCFunctionTool` instances.
+
+### Parameters
+
+- `function_names` (List[str]): Function names in `catalog.schema.function` format (required)
+- `client` (Optional[BaseFunctionClient]): Client for managing functions
+- `filter_accessible_functions` (bool): Filter functions by permissions (default: False)
+
+### Properties
+
+- `tools`: Returns list of `UCFunctionTool` instances
+- `tools_dict`: Dictionary mapping function names to tools
+
+## UCFunctionTool
+
+Custom AutoGen tool that wraps Unity Catalog functions:
+
+```python
+class UCFunctionTool(BaseTool):
+    """AutoGen tool for Unity Catalog functions."""
+    
+    async def run(self, args: BaseModel, cancellation_token: CancellationToken) -> str:
+        """Execute the UC function."""
+        # Function execution happens here
+        pass
+```
+
+## Complete Example
+
+<CodeGroup>
+```python Full Workflow
+import os
+import asyncio
+from typing import Annotated
+from unitycatalog.ai.core.client import UnitycatalogFunctionClient
+from unitycatalog.ai.autogen.toolkit import UCFunctionToolkit
+from unitycatalog.client import ApiClient, Configuration
+from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.messages import TextMessage
+from autogen_core import CancellationToken
+from autogen_ext.models.openai import OpenAIChatCompletionClient
+
+async def main():
+    # 1. Setup client
+    config = Configuration(host="http://localhost:8080/api/2.1/unity-catalog")
+    api_client = ApiClient(configuration=config)
+    uc_client = UnitycatalogFunctionClient(api_client=api_client)
+
+    # 2. Create functions
+    def calculate_bmi(
+        weight_kg: Annotated[float, "Weight in kilograms"],
+        height_m: Annotated[float, "Height in meters"]
+    ) -> float:
+        """Calculate Body Mass Index (BMI).
+        
+        Returns:
+            BMI value
+        """
+        return weight_kg / (height_m ** 2)
+
+    uc_client.create_python_function(
+        func=calculate_bmi,
+        catalog="main",
+        schema="health",
+        replace=True
+    )
+
+    # 3. Create toolkit
+    toolkit = UCFunctionToolkit(
+        function_names=["main.health.calculate_bmi"],
+        client=uc_client
+    )
+
+    # 4. Create agent
+    model_client = OpenAIChatCompletionClient(
+        model="gpt-4o",
+        api_key=os.environ["OPENAI_API_KEY"],
+        temperature=0
+    )
+
+    health_agent = AssistantAgent(
+        name="health_assistant",
+        system_message="You are a health assistant. Use tools to perform calculations.",
+        model_client=model_client,
+        tools=toolkit.tools
+    )
+
+    # 5. Execute
+    response = await health_agent.on_messages(
+        [TextMessage(
+            content="What is the BMI for someone who weighs 70kg and is 1.75m tall?",
+            source="User"
+        )],
+        CancellationToken()
+    )
+
+    print(response.chat_message.content)
+
+asyncio.run(main())
+```
+
+```python Multi-Agent System
+import os
+import asyncio
+from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.teams import RoundRobinGroupChat
+from autogen_agentchat.messages import TextMessage
+from autogen_core import CancellationToken
+from autogen_ext.models.openai import OpenAIChatCompletionClient
+from unitycatalog.ai.autogen.toolkit import UCFunctionToolkit
+
+async def main():
+    # Create multiple specialized toolkits
+    weather_toolkit = UCFunctionToolkit(
+        function_names=["main.tools.get_temperature"],
+        client=uc_client
+    )
+
+    math_toolkit = UCFunctionToolkit(
+        function_names=[
+            "main.tools.temp_c_to_f",
+            "main.tools.calculate_area"
+        ],
+        client=uc_client
+    )
+
+    # Create specialized agents
+    model_client = OpenAIChatCompletionClient(
+        model="gpt-4o",
+        api_key=os.environ["OPENAI_API_KEY"]
+    )
+
+    weather_agent = AssistantAgent(
+        name="weather_specialist",
+        system_message="You specialize in weather information.",
+        model_client=model_client,
+        tools=weather_toolkit.tools
+    )
+
+    math_agent = AssistantAgent(
+        name="math_specialist",
+        system_message="You specialize in calculations.",
+        model_client=model_client,
+        tools=math_toolkit.tools
+    )
+
+    # Create team
+    team = RoundRobinGroupChat([weather_agent, math_agent])
+
+    # Execute multi-agent task
+    result = await team.run(
+        task="Get the temperature in Tokyo and convert it to Fahrenheit"
+    )
+
+    print(result)
+
+asyncio.run(main())
+```
+</CodeGroup>
+
+## Multi-Agent Patterns
+
+### Sequential Execution
+
+Agents execute tools in sequence:
+
+```python
+from autogen_agentchat.teams import RoundRobinGroupChat
+
+# Create agents with different tools
+data_agent = AssistantAgent(
+    name="data_collector",
+    tools=data_toolkit.tools,
+    model_client=model_client
+)
+
+analysis_agent = AssistantAgent(
+    name="data_analyzer",
+    tools=analysis_toolkit.tools,
+    model_client=model_client
+)
+
+# Create sequential team
+team = RoundRobinGroupChat([data_agent, analysis_agent])
+```
+
+### Conditional Tool Use
+
+Control when agents use tools:
+
+```python
+agent = AssistantAgent(
+    name="selective_assistant",
+    system_message="Only use tools when explicitly asked.",
+    model_client=model_client,
+    tools=toolkit.tools,
+    reflect_on_tool_use=True  # Agent reflects before using tools
+)
+```
+
+## Configuration
+
+### Custom Client
+
+```python
+toolkit = UCFunctionToolkit(
+    function_names=["catalog.schema.function"],
+    client=your_custom_client
+)
+```
+
+### Function Execution Arguments
+
+For Databricks-managed UC, see the [function execution arguments configuration](/ai/function-execution).
+
+## Best Practices
+
+1. **Use Type Annotations**: Leverage `Annotated` for parameter descriptions
+2. **Clear Docstrings**: Write descriptive docstrings for better agent understanding
+3. **Error Handling**: Handle tool execution errors gracefully in your system messages
+4. **Tool Specialization**: Create focused toolkits for specific agent roles
+5. **Test Independently**: Test tools directly before integrating with agents
+
+## Related Resources
+
+- [AutoGen Documentation](https://github.com/microsoft/autogen)
+- [AutoGen v0.4+ Migration Guide](https://github.com/microsoft/autogen/discussions/4217)
+- [Unity Catalog Functions](/ai/functions)
+- [Function Execution Configuration](/ai/function-execution)

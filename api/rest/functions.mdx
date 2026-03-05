@@ -1,0 +1,540 @@
+---
+title: 'Functions API'
+description: 'Create and manage Unity Catalog functions'
+---
+
+# Functions API
+
+Functions implement User-Defined Functions (UDFs) in Unity Catalog. The function implementation can be a SQL expression/query or a Python function, and it can be invoked wherever a table reference is allowed in a query.
+
+<Warning>
+  This API is experimental and will change in future versions.
+</Warning>
+
+## Endpoints
+
+### Create Function
+
+Creates a new function instance.
+
+```http
+POST /api/2.1/unity-catalog/functions
+```
+
+#### Request Body
+
+<ParamField body="function_info" type="object" required>
+  The function information object containing all function details.
+</ParamField>
+
+#### Function Info Structure
+
+<ParamField body="name" type="string" required>
+  Name of function, relative to parent schema.
+</ParamField>
+
+<ParamField body="catalog_name" type="string" required>
+  Name of parent catalog.
+</ParamField>
+
+<ParamField body="schema_name" type="string" required>
+  Name of parent schema relative to its parent catalog.
+</ParamField>
+
+<ParamField body="input_params" type="object" required>
+  Input parameters for the function.
+</ParamField>
+
+<ParamField body="data_type" type="string" required>
+  Return data type (e.g., INT, STRING, TABLE).
+</ParamField>
+
+<ParamField body="full_data_type" type="string" required>
+  Pretty printed function data type.
+</ParamField>
+
+<ParamField body="routine_body" type="string" required>
+  Function language. One of: `SQL`, `EXTERNAL`.
+</ParamField>
+
+<ParamField body="routine_definition" type="string" required>
+  Function body (SQL expression or external definition).
+</ParamField>
+
+<ParamField body="parameter_style" type="string" required>
+  Function parameter style. `S` is the value for SQL.
+</ParamField>
+
+<ParamField body="is_deterministic" type="boolean" required>
+  Whether the function is deterministic.
+</ParamField>
+
+<ParamField body="sql_data_access" type="string" required>
+  Function SQL data access. One of: `CONTAINS_SQL`, `READS_SQL_DATA`, `NO_SQL`.
+</ParamField>
+
+<ParamField body="is_null_call" type="boolean" required>
+  Function null call behavior.
+</ParamField>
+
+<ParamField body="security_type" type="string" required>
+  Function security type. Value: `DEFINER`.
+</ParamField>
+
+<ParamField body="specific_name" type="string" required>
+  Specific name of the function (reserved for future use).
+</ParamField>
+
+<ParamField body="comment" type="string">
+  User-provided free-form text description.
+</ParamField>
+
+<ParamField body="external_language" type="string">
+  External language of the function (when routine_body is EXTERNAL).
+</ParamField>
+
+#### Function Parameter Info
+
+<ParamField body="name" type="string" required>
+  Name of parameter.
+</ParamField>
+
+<ParamField body="type_text" type="string" required>
+  Full data type spec, SQL/catalogString text.
+</ParamField>
+
+<ParamField body="type_json" type="string" required>
+  Full data type spec, JSON-serialized.
+</ParamField>
+
+<ParamField body="type_name" type="string" required>
+  Type name (INT, STRING, etc.).
+</ParamField>
+
+<ParamField body="position" type="integer" required>
+  Ordinal position of parameter (starting at position 0).
+</ParamField>
+
+<ParamField body="parameter_mode" type="string">
+  Mode of the function parameter. Value: `IN`.
+</ParamField>
+
+<ParamField body="parameter_type" type="string">
+  Type of function parameter. One of: `PARAM`, `COLUMN`.
+</ParamField>
+
+<ParamField body="comment" type="string">
+  User-provided free-form text description.
+</ParamField>
+
+#### Response
+
+<ResponseField name="name" type="string">
+  Name of function.
+</ResponseField>
+
+<ResponseField name="catalog_name" type="string">
+  Name of parent catalog.
+</ResponseField>
+
+<ResponseField name="schema_name" type="string">
+  Name of parent schema.
+</ResponseField>
+
+<ResponseField name="full_name" type="string">
+  Full name of function, in form of `catalog_name.schema_name.function_name`.
+</ResponseField>
+
+<ResponseField name="function_id" type="string">
+  Id of function.
+</ResponseField>
+
+<ResponseField name="owner" type="string">
+  Username of current owner of function.
+</ResponseField>
+
+<ResponseField name="created_at" type="integer">
+  Time at which this function was created, in epoch milliseconds.
+</ResponseField>
+
+<ResponseField name="created_by" type="string">
+  Username of function creator.
+</ResponseField>
+
+<ResponseField name="updated_at" type="integer">
+  Time at which this function was last updated, in epoch milliseconds.
+</ResponseField>
+
+<ResponseField name="updated_by" type="string">
+  Username of user who last modified function.
+</ResponseField>
+
+#### Example
+
+<CodeGroup>
+```bash cURL - SQL Function
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "function_info": {
+      "name": "calculate_discount",
+      "catalog_name": "main",
+      "schema_name": "default",
+      "input_params": {
+        "parameters": [
+          {
+            "name": "price",
+            "type_text": "double",
+            "type_name": "DOUBLE",
+            "type_json": "{\"name\":\"price\",\"type\":\"double\"}",
+            "position": 0,
+            "parameter_mode": "IN",
+            "parameter_type": "PARAM"
+          },
+          {
+            "name": "discount_pct",
+            "type_text": "double",
+            "type_name": "DOUBLE",
+            "type_json": "{\"name\":\"discount_pct\",\"type\":\"double\"}",
+            "position": 1,
+            "parameter_mode": "IN",
+            "parameter_type": "PARAM"
+          }
+        ]
+      },
+      "data_type": "DOUBLE",
+      "full_data_type": "DOUBLE",
+      "routine_body": "SQL",
+      "routine_definition": "price * (1 - discount_pct / 100)",
+      "parameter_style": "S",
+      "is_deterministic": true,
+      "sql_data_access": "CONTAINS_SQL",
+      "is_null_call": true,
+      "security_type": "DEFINER",
+      "specific_name": "calculate_discount",
+      "comment": "Calculate discounted price"
+    }
+  }' \
+  http://localhost:8080/api/2.1/unity-catalog/functions
+```
+
+```python Python
+from unitycatalog.client import (
+    CreateFunctionRequest,
+    CreateFunction,
+    FunctionParameterInfos,
+    FunctionParameterInfo,
+    ColumnTypeName
+)
+
+function = await functions_api.create_function(
+    CreateFunctionRequest(
+        function_info=CreateFunction(
+            name="calculate_discount",
+            catalog_name="main",
+            schema_name="default",
+            input_params=FunctionParameterInfos(
+                parameters=[
+                    FunctionParameterInfo(
+                        name="price",
+                        type_text="double",
+                        type_name=ColumnTypeName.DOUBLE,
+                        type_json='{"name":"price","type":"double"}',
+                        position=0
+                    ),
+                    FunctionParameterInfo(
+                        name="discount_pct",
+                        type_text="double",
+                        type_name=ColumnTypeName.DOUBLE,
+                        type_json='{"name":"discount_pct","type":"double"}',
+                        position=1
+                    )
+                ]
+            ),
+            data_type=ColumnTypeName.DOUBLE,
+            full_data_type="DOUBLE",
+            routine_body="SQL",
+            routine_definition="price * (1 - discount_pct / 100)",
+            parameter_style="S",
+            is_deterministic=True,
+            sql_data_access="CONTAINS_SQL",
+            is_null_call=True,
+            security_type="DEFINER",
+            specific_name="calculate_discount",
+            comment="Calculate discounted price"
+        )
+    )
+)
+print(f"Created function: {function.full_name}")
+```
+
+```java Java
+CreateFunction functionInfo = new CreateFunction()
+    .name("calculate_discount")
+    .catalogName("main")
+    .schemaName("default")
+    .dataType(ColumnTypeName.DOUBLE)
+    .fullDataType("DOUBLE")
+    .routineBody("SQL")
+    .routineDefinition("price * (1 - discount_pct / 100)")
+    .parameterStyle("S")
+    .isDeterministic(true)
+    .sqlDataAccess("CONTAINS_SQL")
+    .isNullCall(true)
+    .securityType("DEFINER")
+    .specificName("calculate_discount")
+    .comment("Calculate discounted price");
+
+CreateFunctionRequest request = new CreateFunctionRequest()
+    .functionInfo(functionInfo);
+
+FunctionInfo function = functionsApi.createFunction(request);
+System.out.println("Created function: " + function.getFullName());
+```
+</CodeGroup>
+
+---
+
+### List Functions
+
+List functions within the specified parent catalog and schema.
+
+```http
+GET /api/2.1/unity-catalog/functions
+```
+
+#### Query Parameters
+
+<ParamField query="catalog_name" type="string" required>
+  Name of parent catalog for functions of interest.
+</ParamField>
+
+<ParamField query="schema_name" type="string" required>
+  Parent schema of functions.
+</ParamField>
+
+<ParamField query="max_results" type="integer">
+  Maximum number of functions to return. Maximum: 1000.
+</ParamField>
+
+<ParamField query="page_token" type="string">
+  Opaque pagination token to go to next page based on previous query.
+</ParamField>
+
+#### Response
+
+<ResponseField name="functions" type="array">
+  An array of function information objects.
+</ResponseField>
+
+<ResponseField name="next_page_token" type="string">
+  Opaque token to retrieve the next page of results.
+</ResponseField>
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X GET \
+  -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8080/api/2.1/unity-catalog/functions?catalog_name=main&schema_name=default&max_results=100"
+```
+
+```python Python
+response = await functions_api.list_functions(
+    catalog_name="main",
+    schema_name="default",
+    max_results=100
+)
+
+for function in response.functions:
+    print(f"Function: {function.full_name}")
+    print(f"  Data Type: {function.data_type}")
+    print(f"  Routine Body: {function.routine_body}")
+```
+
+```java Java
+ListFunctionsResponse response = functionsApi.listFunctions(
+    "main",
+    "default",
+    100,   // maxResults
+    null   // pageToken
+);
+
+for (FunctionInfo function : response.getFunctions()) {
+    System.out.println("Function: " + function.getFullName());
+}
+```
+</CodeGroup>
+
+---
+
+### Get Function
+
+Gets a function from within a parent catalog and schema.
+
+```http
+GET /api/2.1/unity-catalog/functions/{name}
+```
+
+#### Path Parameters
+
+<ParamField path="name" type="string" required>
+  The fully-qualified name of the function (e.g., `catalog_name.schema_name.function_name`).
+</ParamField>
+
+#### Response
+
+Returns a function information object with all fields described in [Create Function](#create-function).
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X GET \
+  -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/2.1/unity-catalog/functions/main.default.calculate_discount
+```
+
+```python Python
+function = await functions_api.get_function(
+    "main.default.calculate_discount"
+)
+
+print(f"Function: {function.name}")
+print(f"Full Name: {function.full_name}")
+print(f"Data Type: {function.data_type}")
+print(f"Routine Body: {function.routine_body}")
+print(f"Routine Definition: {function.routine_definition}")
+print(f"Deterministic: {function.is_deterministic}")
+
+if function.input_params:
+    print("\nInput Parameters:")
+    for param in function.input_params.parameters:
+        print(f"  {param.name}: {param.type_text}")
+```
+
+```java Java
+FunctionInfo function = functionsApi.getFunction(
+    "main.default.calculate_discount"
+);
+
+System.out.println("Function: " + function.getName());
+System.out.println("Data Type: " + function.getDataType());
+System.out.println("Definition: " + function.getRoutineDefinition());
+```
+</CodeGroup>
+
+---
+
+### Delete Function
+
+Deletes the function that matches the supplied name.
+
+```http
+DELETE /api/2.1/unity-catalog/functions/{name}
+```
+
+#### Path Parameters
+
+<ParamField path="name" type="string" required>
+  The fully-qualified name of the function to delete.
+</ParamField>
+
+#### Response
+
+Returns an empty response on success.
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE \
+  -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/2.1/unity-catalog/functions/main.default.calculate_discount
+```
+
+```python Python
+await functions_api.delete_function(
+    "main.default.calculate_discount"
+)
+print("Function deleted successfully")
+```
+
+```java Java
+functionsApi.deleteFunction("main.default.calculate_discount");
+System.out.println("Function deleted successfully");
+```
+</CodeGroup>
+
+---
+
+## Function Types
+
+### SQL Functions
+
+SQL functions are defined using SQL expressions:
+
+```json
+{
+  "routine_body": "SQL",
+  "routine_definition": "price * (1 - discount_pct / 100)",
+  "sql_data_access": "CONTAINS_SQL"
+}
+```
+
+### External Functions
+
+External functions use external language implementations (e.g., Python):
+
+```json
+{
+  "routine_body": "EXTERNAL",
+  "external_language": "python",
+  "sql_data_access": "NO_SQL"
+}
+```
+
+## SQL Data Access Modes
+
+- **CONTAINS_SQL** - Function contains SQL statements
+- **READS_SQL_DATA** - Function reads data using SQL
+- **NO_SQL** - Function does not contain SQL (required for EXTERNAL functions)
+
+## Error Responses
+
+### 400 Bad Request
+
+```json
+{
+  "error": "Bad Request",
+  "message": "routine_definition is required"
+}
+```
+
+### 404 Not Found
+
+```json
+{
+  "error": "Not Found",
+  "message": "Function 'main.default.calculate_discount' not found"
+}
+```
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Schemas API" icon="layer-group" href="/api/rest/schemas">
+    Manage parent schemas
+  </Card>
+  <Card title="Tables API" icon="table" href="/api/rest/tables">
+    Work with tables
+  </Card>
+  <Card title="Python SDK" icon="python" href="/api/python-sdk">
+    Use the Python client
+  </Card>
+  <Card title="Java SDK" icon="java" href="/api/java-sdk">
+    Use the Java client
+  </Card>
+</CardGroup>

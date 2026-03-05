@@ -1,122 +1,168 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Unity Catalog",
+  "theme": "sequoia",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#e0ae16",
+    "light": "#193658",
+    "dark": "#f49bc9"
   },
-  "favicon": "/favicon.svg",
+  "favicon": "https://media.brand.dev/11c905de-5149-4d03-8a9a-fa557bdd8ca9.jpg",
+  "logo": {
+    "light": "https://media.brand.dev/45c9710b-4979-4f0e-87ad-cca26af2d8ea.svg",
+    "dark": "https://media.brand.dev/0aee6b6f-6c1b-4740-9364-17e8a794537b.svg"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/unitycatalog/unitycatalog"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/unitycatalog/unitycatalog",
+      "website": "https://www.unitycatalog.io"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Getting Started",
             "pages": [
-              "index",
+              "introduction",
               "quickstart",
-              "development"
+              "architecture"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "concepts/catalogs",
+              "concepts/schemas",
+              "concepts/tables",
+              "concepts/volumes",
+              "concepts/functions",
+              "concepts/models"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "CLI Usage",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "cli/overview",
+              "cli/catalogs",
+              "cli/schemas",
+              "cli/tables",
+              "cli/volumes",
+              "cli/functions",
+              "cli/models"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Server",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "server/installation",
+              "server/configuration",
+              "server/deployment",
+              "server/docker",
+              "server/authentication"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/overview",
+              "integrations/duckdb",
+              "integrations/spark",
+              "integrations/trino",
+              "integrations/daft",
+              "integrations/xtable"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "AI & ML",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Overview",
             "pages": [
-              "api-reference/introduction"
+              "ai/introduction",
+              "ai/quickstart"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Client & SDK",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "ai/client-setup",
+              "ai/function-calling",
+              "ai/model-registry"
+            ]
+          },
+          {
+            "group": "Framework Integrations",
+            "pages": [
+              "ai/integrations/langchain",
+              "ai/integrations/llamaindex",
+              "ai/integrations/openai",
+              "ai/integrations/anthropic",
+              "ai/integrations/dspy",
+              "ai/integrations/autogen",
+              "ai/integrations/crewai"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "SDKs",
+            "pages": [
+              "api/overview",
+              "api/python-sdk",
+              "api/java-sdk"
+            ]
+          },
+          {
+            "group": "REST API",
+            "pages": [
+              "api/rest/authentication",
+              "api/rest/catalogs",
+              "api/rest/schemas",
+              "api/rest/tables",
+              "api/rest/volumes",
+              "api/rest/functions",
+              "api/rest/models",
+              "api/rest/permissions",
+              "api/rest/credentials"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Developers",
+        "groups": [
+          {
+            "group": "Contributing",
+            "pages": [
+              "developers/contributing",
+              "developers/building",
+              "developers/testing",
+              "developers/code-style"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "developers/roadmap",
+              "developers/changelog"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

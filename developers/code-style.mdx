@@ -1,0 +1,334 @@
+---
+title: Code Style Guide
+description: Code formatting and style guidelines for Unity Catalog contributors
+---
+
+## Overview
+
+Unity Catalog follows the [Google Java Style Guide](https://google.github.io/styleguide/javaguide.html) for all Java code. Consistent code formatting is enforced via automated tools and checked during CI builds.
+
+<Note>
+All code contributions must adhere to the Google Java style guide and pass automated formatting checks.
+</Note>
+
+## Code Formatting
+
+### Automatic Formatting
+
+Use sbt to automatically format all Java code:
+
+```bash
+build/sbt javafmtAll
+```
+
+This command:
+- Formats all Java source files
+- Formats all Java test files
+- Applies Google Java style conventions
+- Fixes most formatting issues automatically
+
+### Checking Formatting
+
+To verify code formatting without making changes:
+
+```bash
+build/sbt javafmtCheckAll
+```
+
+<Note>
+This command is run in CI and will cause builds to fail if formatting issues are detected.
+</Note>
+
+## IDE Setup
+
+Configuring your IDE to automatically apply Google Java style will help prevent formatting issues.
+
+### IntelliJ IDEA
+
+<Steps>
+  <Step title="Install google-java-format Plugin">
+    1. Open **Settings** / **Preferences**
+    2. Navigate to **Plugins**
+    3. Search for "google-java-format"
+    4. Click **Install**
+    5. Restart IntelliJ IDEA
+  </Step>
+
+  <Step title="Enable the Plugin">
+    1. Open **Settings** / **Preferences**
+    2. Navigate to **Other Settings** > **google-java-format Settings**
+    3. Check **Enable google-java-format**
+    4. Set the code style to **AOSP** (Android Open Source Project)
+  </Step>
+
+  <Step title="Configure Actions on Save">
+    1. Open **Settings** / **Preferences**
+    2. Navigate to **Tools** > **Actions on Save**
+    3. Enable **Reformat code**
+    4. This will auto-format files when you save them
+  </Step>
+</Steps>
+
+<Note>
+For detailed instructions, see the [IntelliJ setup guide](https://github.com/google/google-java-format#intellij-android-studio-and-other-jetbrains-ides). Note the required manual actions for proper configuration.
+</Note>
+
+### Eclipse
+
+<Steps>
+  <Step title="Download Formatter Configuration">
+    Download the [google-java-format Eclipse plugin](https://github.com/google/google-java-format/releases/latest).
+  </Step>
+
+  <Step title="Install Plugin">
+    1. Copy the plugin JAR to Eclipse's `dropins` folder
+    2. Restart Eclipse
+  </Step>
+
+  <Step title="Enable Auto-Format">
+    1. Open **Window** > **Preferences**
+    2. Navigate to **Java** > **Code Style** > **Formatter**
+    3. Enable **google-java-format**
+  </Step>
+</Steps>
+
+For detailed instructions, see the [Eclipse setup guide](https://github.com/google/google-java-format#eclipse).
+
+### Visual Studio Code
+
+For VS Code users:
+
+1. Install the [Language Support for Java extension](https://marketplace.visualstudio.com/items?itemName=redhat.java)
+2. Install the [google-java-format extension](https://marketplace.visualstudio.com/items?itemName=iljapostnovs.googlejavaformat)
+3. Configure format on save in settings:
+
+```json
+{
+  "editor.formatOnSave": true,
+  "[java]": {
+    "editor.defaultFormatter": "iljapostnovs.googlejavaformat"
+  }
+}
+```
+
+## Style Guidelines
+
+### General Principles
+
+We generally follow the [Apache Spark Scala Style Guide](https://spark.apache.org/contributing.html) for overall code organization and conventions.
+
+Key principles:
+- **Readability**: Code should be easy to read and understand
+- **Consistency**: Follow existing patterns in the codebase
+- **Simplicity**: Prefer simple, straightforward solutions
+- **Documentation**: Comment complex logic and public APIs
+
+### Naming Conventions
+
+```java
+// Classes: PascalCase
+public class CatalogService {}
+
+// Methods and variables: camelCase
+public void createCatalog(String catalogName) {}
+
+// Constants: UPPER_SNAKE_CASE
+public static final String DEFAULT_CATALOG = "unity";
+
+// Packages: lowercase
+package io.unitycatalog.server.model;
+```
+
+### Code Organization
+
+```java
+package io.unitycatalog.server.service;
+
+// 1. Imports - organized by groups
+import java.util.List;
+import java.util.Optional;
+
+import io.unitycatalog.server.model.Catalog;
+import io.unitycatalog.server.persist.CatalogRepository;
+
+// 2. Class documentation
+/**
+ * Service for managing Unity Catalog catalogs.
+ */
+public class CatalogService {
+    
+    // 3. Fields
+    private final CatalogRepository repository;
+    
+    // 4. Constructor
+    public CatalogService(CatalogRepository repository) {
+        this.repository = repository;
+    }
+    
+    // 5. Public methods
+    public Catalog createCatalog(String name) {
+        // Implementation
+    }
+    
+    // 6. Private methods
+    private void validateCatalogName(String name) {
+        // Implementation
+    }
+}
+```
+
+### Documentation
+
+Use JavaDoc for public APIs:
+
+```java
+/**
+ * Creates a new catalog with the specified name.
+ * 
+ * @param name the name of the catalog to create
+ * @return the newly created catalog
+ * @throws IllegalArgumentException if the name is invalid
+ */
+public Catalog createCatalog(String name) {
+    validateCatalogName(name);
+    return repository.save(new Catalog(name));
+}
+```
+
+## Pre-commit Hooks
+
+Consider setting up a pre-commit hook to automatically format code before commits:
+
+```bash
+#!/bin/bash
+# .git/hooks/pre-commit
+
+echo "Running code formatter..."
+build/sbt javafmtAll
+
+if ! build/sbt javafmtCheckAll; then
+    echo "Code formatting issues detected. Please run 'build/sbt javafmtAll' and commit again."
+    exit 1
+fi
+```
+
+Make the hook executable:
+
+```bash
+chmod +x .git/hooks/pre-commit
+```
+
+## Checkstyle Rules
+
+Unity Catalog uses Checkstyle to enforce additional code quality rules beyond formatting:
+
+- Line length limits
+- Import organization
+- Javadoc requirements
+- Naming conventions
+- Code complexity metrics
+
+Checkstyle is automatically run during the build process:
+
+```bash
+build/sbt checkstyle
+```
+
+## Common Formatting Issues
+
+### Issue: Long Lines
+
+```java
+// Bad: Line too long
+public Catalog createCatalogWithProperties(String name, String owner, Map<String, String> properties, String comment) {
+    // ...
+}
+
+// Good: Break into multiple lines
+public Catalog createCatalogWithProperties(
+    String name,
+    String owner,
+    Map<String, String> properties,
+    String comment) {
+    // ...
+}
+```
+
+### Issue: Import Organization
+
+```java
+// Bad: Unorganized imports
+import java.util.List;
+import io.unitycatalog.server.model.Catalog;
+import java.util.Map;
+import io.unitycatalog.server.model.Schema;
+
+// Good: Organized imports
+import java.util.List;
+import java.util.Map;
+
+import io.unitycatalog.server.model.Catalog;
+import io.unitycatalog.server.model.Schema;
+```
+
+### Issue: Inconsistent Bracing
+
+```java
+// Bad: K&R style
+if (condition)
+{
+    doSomething();
+}
+
+// Good: Opening brace on same line
+if (condition) {
+    doSomething();
+}
+```
+
+## Command Reference
+
+<CodeGroup>
+
+```bash Format All Code
+build/sbt javafmtAll
+```
+
+```bash Check Formatting
+build/sbt javafmtCheckAll
+```
+
+```bash Run Checkstyle
+build/sbt checkstyle
+```
+
+```bash Format & Compile
+build/sbt javafmtAll compile
+```
+
+</CodeGroup>
+
+## Troubleshooting
+
+### Formatting Conflicts
+
+If `javafmtAll` and your IDE formatter produce different results:
+
+1. Ensure you're using the latest version of the google-java-format plugin
+2. Verify your IDE is configured to use Google style (not default IntelliJ/Eclipse style)
+3. Run `build/sbt javafmtAll` as the source of truth
+
+### Plugin Installation Issues
+
+If you have trouble installing IDE plugins:
+
+1. Check that you're using a compatible IDE version
+2. Manually download the plugin from the GitHub releases page
+3. Follow the manual installation instructions in the plugin documentation
+
+## Next Steps
+
+- [Contributing Guidelines](/developers/contributing)
+- [Building Unity Catalog](/developers/building)
+- [Running Tests](/developers/testing)
+- [Google Java Style Guide](https://google.github.io/styleguide/javaguide.html)

@@ -1,0 +1,167 @@
+---
+title: Introduction to Unity Catalog
+description: Learn about Unity Catalog, the industry's only universal catalog for data and AI
+---
+
+# Introduction to Unity Catalog
+
+Unity Catalog is the industry's only universal catalog for data and AI. It provides a unified governance layer for all your data and AI assets, with open APIs and an open-source implementation.
+
+## What is Unity Catalog?
+
+Unity Catalog is an open-source data catalog that enables you to discover, access, and govern all your data and AI assets from a single platform. As a sandbox project with the LF AI & Data Foundation (part of the Linux Foundation), Unity Catalog offers enterprise-grade governance with the flexibility of open source.
+
+<Note>
+  Unity Catalog uses the Apache 2.0 license and is designed to work with any compute engine through its open APIs.
+</Note>
+
+## Key Features
+
+### Multimodal Interface
+
+Unity Catalog supports any format, engine, and asset type:
+
+- **Multi-format support**: Extensible architecture supports Delta Lake, Apache Iceberg and Apache Hudi via UniForm, Apache Parquet, JSON, CSV, and many other formats
+- **Multi-engine support**: Open APIs enable leading compute engines like Apache Spark, DuckDB, Trino, and more to read cataloged data
+- **Multimodal assets**: Manage all your data and AI assets including:
+  - Tables (structured data)
+  - Volumes (unstructured files)
+  - Functions (user-defined functions)
+  - AI Models (ML models and versions)
+
+### Open Source API and Implementation
+
+- **OpenAPI specification**: Fully documented REST API for easy integration
+- **OSS implementation**: Apache 2.0 licensed server and client SDKs
+- **Compatible APIs**: Works with Apache Hive's metastore API and Apache Iceberg's REST catalog API
+- **Active community**: Backed by a vibrant ecosystem of cloud providers, data platforms, and AI companies
+
+### Unified Governance
+
+Govern and secure all your assets with a single interface:
+
+- Fine-grained access control for tables, volumes, functions, and models
+- Centralized permissions management
+- Audit logging and lineage tracking
+- Secure credential management for cloud storage
+
+## Three-Level Namespace
+
+Unity Catalog organizes all assets in a hierarchical three-level namespace:
+
+```
+catalog.schema.asset
+```
+
+<Accordion title="Understanding the Three-Level Namespace">
+  **Level 1: Catalog** - The top-level container for organizing data assets
+  
+  **Level 2: Schema** - Also called a database, it organizes tables, volumes, and functions within a catalog
+  
+  **Level 3: Asset** - The actual data objects including tables, volumes, functions, and models
+</Accordion>
+
+### Example Structure
+
+Here's how you might organize a Unity Catalog instance:
+
+```
+cool_stuff                    (catalog)
+├── thing_a                   (schema)
+│   ├── user_table            (Delta table)
+│   ├── transform_func        (function)
+│   └── images                (volume)
+└── thing_b                   (schema)
+    ├── events_table          (Delta table)
+    └── aggregated_data       (Delta table)
+```
+
+Assets are referenced using their fully qualified name:
+
+```sql
+SELECT * FROM cool_stuff.thing_a.user_table;
+```
+
+## Supported Formats and Engines
+
+### Data Formats
+
+Unity Catalog supports a wide range of data formats:
+
+- **Delta Lake**: Full support with ACID transactions
+- **Apache Iceberg**: Via UniForm compatibility layer
+- **Apache Hudi**: Via UniForm compatibility layer  
+- **Parquet**: Direct file access
+- **JSON, CSV**: Common data interchange formats
+- **Custom formats**: Extensible architecture for additional formats
+
+### Compute Engines
+
+The open APIs enable integration with many compute engines:
+
+- Apache Spark (via Unity Catalog connector)
+- DuckDB (native UC catalog support)
+- Trino / StarRocks
+- Daft (distributed query engine)
+- PuppyGraph (graph analytics)
+- Kuzu (graph database)
+- And many more...
+
+<CodeGroup>
+```sql DuckDB
+-- Connect DuckDB to Unity Catalog
+CREATE SECRET (
+  TYPE UC,
+  TOKEN 'not-used',
+  ENDPOINT 'http://127.0.0.1:8080',
+  AWS_REGION 'us-east-2'
+);
+
+ATTACH 'unity' AS unity (TYPE UC_CATALOG);
+SELECT * FROM unity.default.numbers;
+```
+
+```python PySpark
+# Connect Spark to Unity Catalog
+from pyspark.sql import SparkSession
+
+spark = SparkSession.builder \
+  .appName("Unity Catalog Example") \
+  .config("spark.sql.catalog.unity", "io.unitycatalog.spark.UCSingleCatalog") \
+  .config("spark.sql.catalog.unity.uri", "http://localhost:8080") \
+  .getOrCreate()
+
+df = spark.table("unity.default.numbers")
+df.show()
+```
+</CodeGroup>
+
+## Vibrant Ecosystem
+
+Unity Catalog is supported by a growing community including:
+
+- **Cloud Providers**: AWS, Google Cloud, Microsoft Azure
+- **Data Platforms**: Databricks, Confluent, Fivetran, Informatica
+- **Query Engines**: DuckDB, Trino, StarRocks, Daft
+- **AI Frameworks**: LangChain, LlamaIndex, NVIDIA
+- **Storage & Formats**: Onehouse, Delta Lake, Iceberg
+- And many more...
+
+## Getting Started
+
+Ready to try Unity Catalog? Check out our [Quickstart Guide](/quickstart) to get up and running in minutes.
+
+<Note>
+  Unity Catalog can run on your laptop for development and testing, or be deployed in production with enterprise databases like PostgreSQL or MySQL.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get Unity Catalog running in minutes
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/architecture">
+    Learn about Unity Catalog's architecture
+  </Card>
+</CardGroup>

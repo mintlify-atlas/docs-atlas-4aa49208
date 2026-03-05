@@ -1,0 +1,200 @@
+---
+title: Building Unity Catalog
+description: Build Unity Catalog from source with sbt
+---
+
+## Prerequisites
+
+Before building Unity Catalog, ensure your local environment has the following:
+
+<Note>
+- **JDK 17** - Install JDK 17 by whatever mechanism is appropriate for your system
+- **sbt** - The Scala Build Tool is included in the repository
+- **Git** - To clone the repository
+</Note>
+
+### Environment Setup
+
+Ensure the `JAVA_HOME` environment variable is configured to point to JDK 17.
+
+```bash
+export JAVA_HOME=/path/to/jdk17
+java -version  # Verify JDK 17 is active
+```
+
+## Getting the Source Code
+
+Clone the Unity Catalog repository:
+
+```bash
+git clone https://github.com/unitycatalog/unitycatalog.git
+cd unitycatalog
+```
+
+## Building Unity Catalog
+
+Unity Catalog is built using [sbt](https://www.scala-sbt.org/).
+
+### Compile the Code
+
+To compile all the code without running tests:
+
+```bash
+build/sbt clean compile
+```
+
+<Note>
+This command compiles the entire project including the UC server and all connectors.
+</Note>
+
+### Build Packages
+
+To build UC and create packages (including the [Spark Integration](https://github.com/unitycatalog/unitycatalog/tree/main/connectors/spark) module):
+
+```bash
+build/sbt clean package publishLocal
+```
+
+This command:
+- Cleans previous builds
+- Compiles all modules
+- Creates JAR packages
+- Publishes artifacts to your local repository
+
+### Create Deployment Tarball
+
+To create a tarball that can be used to deploy the UC server or run the CLI:
+
+```bash
+build/sbt createTarball
+```
+
+The tarball will be created in the `target` directory and contains:
+- UC server binaries
+- CLI tools
+- Required dependencies
+- Startup scripts
+
+<Note>
+See the full [deployment guide](https://docs.unitycatalog.io/deployment/) for more details on deploying Unity Catalog.
+</Note>
+
+## Build Commands Reference
+
+<CodeGroup>
+
+```bash Compile Only
+build/sbt clean compile
+```
+
+```bash Build Packages
+build/sbt clean package publishLocal
+```
+
+```bash Create Tarball
+build/sbt createTarball
+```
+
+```bash Format Code
+build/sbt javafmtAll
+```
+
+```bash Run Tests
+build/sbt -J-Xmx2G clean test
+```
+
+```bash Generate API Spec
+build/sbt generate
+```
+
+</CodeGroup>
+
+## Setting up IDE
+
+IntelliJ IDEA is the recommended IDE for developing Unity Catalog.
+
+<Steps>
+  <Step title="Import Project">
+    Clone Unity Catalog into a local folder (e.g., `~/unitycatalog`).
+    
+    Select **File** > **New Project** > **Project from Existing Sources...** and select `~/unitycatalog`.
+  </Step>
+
+  <Step title="Select sbt">
+    Under **Import project from external model** select **sbt**. Click **Next**.
+  </Step>
+
+  <Step title="Complete Import">
+    Click **Finish** to complete the import process.
+  </Step>
+
+  <Step title="Configure Code Formatter">
+    Java code adheres to the [Google style guide](https://google.github.io/styleguide/javaguide.html). Install the **google-java-format** plugin for IntelliJ.
+    
+    Follow the [IntelliJ installation instructions](https://github.com/google/google-java-format#intellij-android-studio-and-other-jetbrains-ides) to install and configure the plugin.
+    
+    <Note>
+    Note the required manual actions for IntelliJ configuration.
+    </Note>
+  </Step>
+</Steps>
+
+### Eclipse Setup
+
+If you prefer Eclipse, follow the instructions for [Eclipse](https://github.com/google/google-java-format#eclipse) to install the **google-java-format** plugin.
+
+## Updating API Specification
+
+If you need to update the API specification:
+
+<Steps>
+  <Step title="Edit the Spec">
+    Update the `api/all.yaml` file with your changes.
+  </Step>
+
+  <Step title="Regenerate Models">
+    Run the following command to regenerate the OpenAPI data models:
+    
+    ```bash
+    build/sbt generate
+    ```
+    
+    This will regenerate:
+    - OpenAPI data models in the UC server
+    - Data models and APIs in the client SDK
+  </Step>
+</Steps>
+
+## JDK Compatibility
+
+The build script [checks for a lower bound on the JDK](https://github.com/unitycatalog/unitycatalog/blob/main/build.sbt#L14) but the [current SBT version](https://github.com/unitycatalog/unitycatalog/blob/main/project/build.properties) imposes an upper bound.
+
+<Note>
+For more information about JDK compatibility, see the [Scala JDK compatibility documentation](https://docs.scala-lang.org/overviews/jdk-compatibility/overview.html).
+</Note>
+
+## Common Issues
+
+### Out of Memory Errors
+
+If you encounter out of memory errors during builds or tests, increase the heap size:
+
+```bash
+build/sbt -J-Xmx4G clean test
+```
+
+### JDK Version Mismatch
+
+Verify your JAVA_HOME points to JDK 17:
+
+```bash
+echo $JAVA_HOME
+java -version
+```
+
+## Next Steps
+
+- [Running Tests](/developers/testing)
+- [Code Style Guidelines](/developers/code-style)
+- [Contributing to Unity Catalog](/developers/contributing)
+- [Deployment Guide](https://docs.unitycatalog.io/deployment/)

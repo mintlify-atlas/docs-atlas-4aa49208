@@ -1,0 +1,491 @@
+---
+title: CrewAI Integration
+description: Use Unity Catalog functions as tools in CrewAI multi-agent crews
+---
+
+Use Unity Catalog functions as tools within CrewAI to build collaborative multi-agent systems.
+
+## Installation
+
+Install the Unity Catalog CrewAI integration from PyPI:
+
+```bash
+pip install unitycatalog-crewai
+```
+
+For **Databricks Unity Catalog**, install with the optional databricks package:
+
+```bash
+pip install unitycatalog-crewai[databricks]
+```
+
+## Setup
+
+<Steps>
+  <Step title="Create a Unity Catalog Client">
+    Initialize the `UnitycatalogFunctionClient`:
+
+    ```python
+    from unitycatalog.ai.core.client import UnitycatalogFunctionClient
+    from unitycatalog.client import ApiClient, Configuration
+
+    config = Configuration(
+        host="http://localhost:8080/api/2.1/unity-catalog"
+    )
+
+    api_client = ApiClient(configuration=config)
+    uc_client = UnitycatalogFunctionClient(api_client=api_client)
+
+    CATALOG = "my_catalog"
+    SCHEMA = "my_schema"
+    ```
+  </Step>
+
+  <Step title="Create a Unity Catalog Function">
+    Define your function with type hints and docstring:
+
+    ```python
+    def add_numbers(a: float, b: float) -> float:
+        """
+        Adds two numbers and returns the result.
+
+        Args:
+            a (float): First number.
+            b (float): Second number.
+
+        Returns:
+            float: The sum of the two numbers.
+        """
+        return a + b
+
+    function_info = uc_client.create_python_function(
+        func=add_numbers,
+        catalog=CATALOG,
+        schema=SCHEMA,
+        replace=False
+    )
+    ```
+  </Step>
+
+  <Step title="Create UCFunctionToolkit">
+    Convert UC functions to CrewAI tools:
+
+    ```python
+    from unitycatalog.ai.crewai.toolkit import UCFunctionToolkit
+
+    function_name = f"{CATALOG}.{SCHEMA}.add_numbers"
+    toolkit = UCFunctionToolkit(function_names=[function_name])
+
+    # Get CrewAI-compatible tools
+    tools = toolkit.tools
+    ```
+  </Step>
+</Steps>
+
+## Using with CrewAI
+
+Create agents and crews with UC function tools:
+
+```python
+import os
+from crewai import Agent, Task, Crew
+
+# Set API key
+os.environ["OPENAI_API_KEY"] = "your-api-key"
+
+# Create agents with UC tools
+coder = Agent(
+    role="Simple coder",
+    goal="Create a program that prints Hello Unity Catalog!",
+    backstory="Experienced Python developer",
+    tools=tools,
+    verbose=True
+)
+
+reviewer = Agent(
+    role="Reviewer",
+    goal="Ensure the coder calls functions correctly",
+    backstory="Quality assurance specialist",
+    verbose=True
+)
+
+# Define tasks
+code_task = Task(
+    description="Write and test code using available tools",
+    expected_output="Working code",
+    agent=coder
+)
+
+review_task = Task(
+    description="Review the tool call output",
+    expected_output="Approval or feedback",
+    agent=reviewer
+)
+
+# Create crew
+crew = Crew(
+    agents=[coder, reviewer],
+    tasks=[code_task, review_task],
+    verbose=True,
+    planning=True
+)
+
+# Execute
+result = crew.kickoff()
+print(result)
+```
+
+## Direct Tool Testing
+
+Test tools before integrating with CrewAI:
+
+```python
+my_tool = tools[0]
+
+# Call the tool directly
+result = my_tool.fn(**{"a": 10, "b": 20})
+print(result)
+```
+
+## Databricks Unity Catalog
+
+<Note>
+For Databricks-managed Unity Catalog, follow the [authentication instructions](https://docs.databricks.com/en/dev-tools/cli/authentication.html) and ensure your access token has workspace-level privileges.
+</Note>
+
+### Client Setup
+
+```python
+from unitycatalog.ai.core.base import set_uc_function_client
+from unitycatalog.ai.core.databricks import DatabricksFunctionClient
+
+client = DatabricksFunctionClient()
+set_uc_function_client(client)
+```
+
+### Create Python UDF
+
+```python
+CATALOG = "catalog"
+SCHEMA = "schema"
+
+def make_uppercase(s: str) -> str:
+    """
+    Convert the string to uppercase.
+    """
+    return s.upper()
+
+response = client.create_python_function(
+    func=make_uppercase,
+    catalog=CATALOG,
+    schema=SCHEMA
+)
+
+function_name = f"{CATALOG}.{SCHEMA}.make_uppercase"
+```
+
+## UCFunctionToolkit API
+
+The `UCFunctionToolkit` converts UC functions to CrewAI `BaseTool` instances.
+
+### Parameters
+
+- `function_names` (List[str]): Function names in `catalog.schema.function` format (required)
+- `client` (Optional[BaseFunctionClient]): Client for managing functions
+- `filter_accessible_functions` (bool): Filter functions by permissions (default: False)
+- `description_updated` (bool): Flag for description updates (default: False)
+- `cache_function` (Callable): Function to determine caching behavior
+- `result_as_answer` (bool): Whether tool output is final answer (default: False)
+
+### Properties
+
+- `tools`: Returns list of CrewAI `BaseTool` instances
+- `tools_dict`: Dictionary mapping function names to tools
+
+### CrewAI-Specific Parameters
+
+Control CrewAI tool behavior:
+
+```python
+toolkit = UCFunctionToolkit(
+    function_names=["catalog.schema.function"],
+    result_as_answer=True,  # Tool output is final answer
+    cache_function=lambda args, result: True  # Cache all results
+)
+```
+
+## Complete Example
+
+<CodeGroup>
+```python Full Workflow
+import os
+from crewai import Agent, Task, Crew
+from unitycatalog.ai.core.client import UnitycatalogFunctionClient
+from unitycatalog.ai.crewai.toolkit import UCFunctionToolkit
+from unitycatalog.client import ApiClient, Configuration
+
+# 1. Setup
+config = Configuration(host="http://localhost:8080/api/2.1/unity-catalog")
+api_client = ApiClient(configuration=config)
+uc_client = UnitycatalogFunctionClient(api_client=api_client)
+
+# 2. Create function
+def analyze_sentiment(text: str) -> str:
+    """Analyze sentiment of text.
+    
+    Args:
+        text: Text to analyze
+    
+    Returns:
+        Sentiment (positive/negative/neutral)
+    """
+    # Mock implementation
+    if "great" in text.lower() or "excellent" in text.lower():
+        return "positive"
+    elif "bad" in text.lower() or "terrible" in text.lower():
+        return "negative"
+    return "neutral"
+
+uc_client.create_python_function(
+    func=analyze_sentiment,
+    catalog="main",
+    schema="nlp",
+    replace=True
+)
+
+# 3. Create toolkit
+toolkit = UCFunctionToolkit(
+    function_names=["main.nlp.analyze_sentiment"]
+)
+
+# 4. Set API key
+os.environ["OPENAI_API_KEY"] = "your-api-key"
+
+# 5. Create agents
+analyst = Agent(
+    role="Sentiment Analyst",
+    goal="Analyze customer feedback sentiment",
+    backstory="Expert in natural language processing",
+    tools=toolkit.tools,
+    verbose=True
+)
+
+reporter = Agent(
+    role="Report Writer",
+    goal="Summarize sentiment analysis results",
+    backstory="Skilled at creating reports",
+    verbose=True
+)
+
+# 6. Create tasks
+analysis_task = Task(
+    description="Analyze sentiment: 'This product is excellent!'",
+    expected_output="Sentiment classification",
+    agent=analyst
+)
+
+report_task = Task(
+    description="Create a summary report of the sentiment analysis",
+    expected_output="Summary report",
+    agent=reporter
+)
+
+# 7. Create and run crew
+crew = Crew(
+    agents=[analyst, reporter],
+    tasks=[analysis_task, report_task],
+    verbose=True,
+    planning=True
+)
+
+result = crew.kickoff()
+print(result)
+```
+
+```python Multi-Tool Crew
+import os
+from crewai import Agent, Task, Crew
+from unitycatalog.ai.crewai.toolkit import UCFunctionToolkit
+
+# Create multiple functions
+def get_user_data(user_id: str) -> str:
+    """Fetch user data from database."""
+    return f"User {user_id}: Premium subscriber, active since 2020"
+
+def calculate_discount(user_type: str, amount: float) -> float:
+    """Calculate discount based on user type."""
+    if user_type == "Premium":
+        return amount * 0.2
+    return amount * 0.1
+
+# Create in UC
+for func in [get_user_data, calculate_discount]:
+    uc_client.create_python_function(
+        func=func,
+        catalog="main",
+        schema="sales",
+        replace=True
+    )
+
+# Create toolkit with multiple tools
+toolkit = UCFunctionToolkit(
+    function_names=[
+        "main.sales.get_user_data",
+        "main.sales.calculate_discount"
+    ]
+)
+
+# Create specialized agents
+os.environ["OPENAI_API_KEY"] = "your-api-key"
+
+data_agent = Agent(
+    role="Data Specialist",
+    goal="Retrieve user information",
+    backstory="Database expert",
+    tools=[toolkit.tools[0]],  # Only get_user_data
+    verbose=True
+)
+
+pricing_agent = Agent(
+    role="Pricing Specialist",
+    goal="Calculate discounts",
+    backstory="Pricing strategy expert",
+    tools=[toolkit.tools[1]],  # Only calculate_discount
+    verbose=True
+)
+
+manager = Agent(
+    role="Sales Manager",
+    goal="Coordinate team and finalize pricing",
+    backstory="Experienced sales leader",
+    verbose=True
+)
+
+# Create workflow
+fetch_task = Task(
+    description="Get data for user ID 'user123'",
+    expected_output="User data",
+    agent=data_agent
+)
+
+calculate_task = Task(
+    description="Calculate discount for Premium user with $100 purchase",
+    expected_output="Discount amount",
+    agent=pricing_agent
+)
+
+approval_task = Task(
+    description="Review and approve the discount",
+    expected_output="Approval decision",
+    agent=manager
+)
+
+crew = Crew(
+    agents=[data_agent, pricing_agent, manager],
+    tasks=[fetch_task, calculate_task, approval_task],
+    verbose=True,
+    planning=True
+)
+
+result = crew.kickoff()
+print(result)
+```
+</CodeGroup>
+
+## Tool Caching
+
+Control CrewAI's tool result caching:
+
+```python
+# Cache only successful results
+def cache_on_success(args, result):
+    return result is not None and "error" not in str(result)
+
+toolkit = UCFunctionToolkit(
+    function_names=["catalog.schema.function"],
+    cache_function=cache_on_success
+)
+```
+
+## Result as Answer
+
+Make tool output the final agent answer:
+
+```python
+toolkit = UCFunctionToolkit(
+    function_names=["catalog.schema.final_calculator"],
+    result_as_answer=True  # Tool output becomes final answer
+)
+```
+
+## Multi-Agent Patterns
+
+### Sequential Processing
+
+```python
+# Agent 1: Data collection
+collector = Agent(
+    role="Data Collector",
+    tools=data_tools,
+    goal="Gather information"
+)
+
+# Agent 2: Data processing
+processor = Agent(
+    role="Data Processor",
+    tools=processing_tools,
+    goal="Process collected data"
+)
+
+# Agent 3: Report generation
+reporter = Agent(
+    role="Reporter",
+    goal="Create final report"
+)
+
+crew = Crew(
+    agents=[collector, processor, reporter],
+    tasks=[collect_task, process_task, report_task]
+)
+```
+
+### Parallel Execution
+
+```python
+# Multiple agents work in parallel
+crew = Crew(
+    agents=[analyst1, analyst2, analyst3],
+    tasks=[task1, task2, task3],
+    process="parallel"  # Process tasks in parallel
+)
+```
+
+## Configuration
+
+### Custom Client
+
+```python
+toolkit = UCFunctionToolkit(
+    function_names=["catalog.schema.function"],
+    client=your_custom_client
+)
+```
+
+### Function Execution Arguments
+
+For Databricks-managed UC, see the [function execution arguments configuration](/ai/function-execution).
+
+## Best Practices
+
+1. **Clear Role Definition**: Define specific roles and goals for each agent
+2. **Tool Specialization**: Assign relevant tools to each agent based on their role
+3. **Task Dependencies**: Structure tasks to reflect workflow dependencies
+4. **Enable Planning**: Use `planning=True` for complex multi-step workflows
+5. **Verbose Mode**: Enable `verbose=True` during development for debugging
+
+## Related Resources
+
+- [CrewAI Documentation](https://docs.crewai.com/)
+- [CrewAI Tools Guide](https://docs.crewai.com/core-concepts/Tools/)
+- [Unity Catalog Functions](/ai/functions)
+- [Function Execution Configuration](/ai/function-execution)

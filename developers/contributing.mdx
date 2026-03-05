@@ -1,0 +1,150 @@
+---
+title: Contributing to Unity Catalog
+description: Learn how to contribute to the Unity Catalog open source project
+---
+
+## Welcome Contributors
+
+We happily welcome contributions to Unity Catalog. We use [GitHub Issues](https://github.com/unitycatalog/unitycatalog/issues) to track community reported issues and [GitHub Pull Requests](https://github.com/unitycatalog/unitycatalog/pulls) for accepting changes.
+
+## Governance
+
+Unity Catalog is an independent open-source project and is also a project of the [LF AI and Data Foundation](https://lfaidata.foundation/). The project under the Linux Foundation follows [open governance](https://github.com/opengovernance/opengovernance.dev), which means that there is no one company or individual in control of a project.
+
+<Note>
+Unity Catalog is built on OpenAPI spec and an open source server implementation under [Apache 2.0 license](https://github.com/unitycatalog/unitycatalog/blob/main/LICENSE). It is also compatible with Apache Hive's metastore API and Apache Iceberg's REST catalog API.
+</Note>
+
+This is a community effort supported by Amazon Web Services (AWS), Microsoft Azure, Google Cloud, Nvidia, Salesforce, DuckDB, LangChain, dbt Labs, Fivetran, Confluent, Unstructured, Onehouse, Immuta, Informatica and many more.
+
+You can join the Unity Catalog open source community at [unitycatalog.io](https://unitycatalog.io) and the [Unity Catalog Community Slack](https://go.unitycatalog.io/slack).
+
+## Communication Guidelines
+
+<Steps>
+  <Step title="Before Starting Major Features">
+    Before starting work on a major feature, please reach out to us via [GitHub](https://github.com/unitycatalog/unitycatalog/issues) or [Slack](https://unitycatalog.slack.com/). We will make sure no one else is already working on it and ask you to open a GitHub issue.
+    
+    A "major feature" is defined as any change that is > 100 LOC altered (not including tests), or changes any user-facing behavior.
+  </Step>
+
+  <Step title="Discuss the Design">
+    We will use the GitHub issue to discuss the feature and come to agreement. This is to prevent your time being wasted, as well as ours. The GitHub review process for major features is also important so that organizations with commit access can come to agreement on design.
+    
+    If it is appropriate to write a design document, the document must be hosted either in the GitHub tracking issue, or linked to from the issue and hosted in a world-readable location.
+  </Step>
+
+  <Step title="Small Patches and Bug Fixes">
+    Small patches and bug fixes don't need prior communication. If you have identified a bug and have ways to solve it, please create an [issue](https://github.com/unitycatalog/unitycatalog/issues) or create a [pull request](https://github.com/unitycatalog/unitycatalog/pulls).
+  </Step>
+</Steps>
+
+## Auto-Assigning Issues
+
+We have implemented a feature that allows users to comment "**take**" on an issue to be auto-assigned the issue without having to depend on or wait for the maintainers to assign the issue before working on it.
+
+<Note>
+Simply comment "take" on any open issue to be automatically assigned to it.
+</Note>
+
+## Pull Request Process
+
+<Steps>
+  <Step title="Fork and Clone">
+    Fork the Unity Catalog repository and clone it to your local machine.
+    
+    ```bash
+    git clone https://github.com/YOUR_USERNAME/unitycatalog.git
+    cd unitycatalog
+    ```
+  </Step>
+
+  <Step title="Create a Branch">
+    Create a new branch for your feature or bug fix.
+    
+    ```bash
+    git checkout -b feature/my-new-feature
+    ```
+  </Step>
+
+  <Step title="Make Changes">
+    Make your changes following our [code style guidelines](/developers/code-style). Ensure all tests pass and add new tests for your changes.
+  </Step>
+
+  <Step title="Sign Your Work">
+    The sign-off is a simple line at the end of the explanation for the patch. Your signature certifies that you wrote the patch or otherwise have the right to pass it on as an open-source patch.
+    
+    ```
+    Signed-off-by: Jane Smith <jane.smith@email.com>
+    ```
+    
+    Use your real name (sorry, no pseudonyms or anonymous contributions).
+  </Step>
+
+  <Step title="Submit Pull Request">
+    Push your changes to your fork and submit a pull request to the main Unity Catalog repository.
+    
+    ```bash
+    git push origin feature/my-new-feature
+    ```
+  </Step>
+</Steps>
+
+## Code of Conduct
+
+### Our Pledge
+
+We as members, contributors, and leaders pledge to make participation in our community a harassment-free experience for everyone, regardless of age, body size, visible or invisible disability, ethnicity, sex characteristics, gender identity and expression, level of experience, education, socio-economic status, nationality, personal appearance, race, religion, or sexual identity and orientation.
+
+We pledge to act and interact in ways that contribute to an open, welcoming, diverse, inclusive, and healthy community.
+
+### Our Standards
+
+Examples of behavior that contributes to a positive environment for our community include:
+
+- Demonstrating empathy and kindness toward other people
+- Being respectful of differing opinions, viewpoints, and experiences
+- Giving and gracefully accepting constructive feedback
+- Accepting responsibility and apologizing to those affected by our mistakes, and learning from the experience
+- Focusing on what is best not just for us as individuals, but for the overall community
+
+Examples of unacceptable behavior include:
+
+- The use of sexualized language or imagery, and sexual attention or advances of any kind
+- Trolling, insulting or derogatory comments, and personal or political attacks
+- Public or private harassment
+- Publishing others' private information, such as a physical or email address, without their explicit permission
+- Other conduct which could reasonably be considered inappropriate in a professional setting
+
+### Enforcement
+
+<Note>
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the community leaders responsible for enforcement at denny.lee@databricks.com.
+</Note>
+
+All complaints will be reviewed and investigated promptly and fairly. All community leaders are obligated to respect the privacy and security of the reporter of any incident.
+
+### Additional Guidelines
+
+Your use is additionally subject to the [Linux Foundation Code of Conduct](https://lfprojects.org/policies/code-of-conduct/).
+
+## Coding Style
+
+We generally follow the [Apache Spark Scala Style Guide](https://spark.apache.org/contributing.html).
+
+For detailed information about code formatting and style requirements, see our [Code Style Guide](/developers/code-style).
+
+## Getting Help
+
+If you need help with your contribution:
+
+- Join our [Community Slack](https://go.unitycatalog.io/slack)
+- Ask questions on [GitHub Discussions](https://github.com/unitycatalog/unitycatalog/discussions)
+- Review existing [GitHub Issues](https://github.com/unitycatalog/unitycatalog/issues)
+
+## Resources
+
+- [Building Unity Catalog](/developers/building)
+- [Running Tests](/developers/testing)
+- [Code Style Guide](/developers/code-style)
+- [Project Roadmap](/developers/roadmap)

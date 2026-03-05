@@ -1,0 +1,132 @@
+---
+title: Integrations Overview
+description: Unity Catalog supports multiple compute engines and data formats for universal data access
+---
+
+Unity Catalog is the industry's only universal catalog for data and AI, designed to work seamlessly with multiple compute engines, storage formats, and data platforms.
+
+## Multimodal Interface
+
+Unity Catalog provides a flexible, open interface that supports:
+
+- **Multi-format support** - Extensible support for Delta Lake, Apache Iceberg (via UniForm), Apache Hudi (via UniForm), Apache Parquet, JSON, CSV, and more
+- **Multi-engine support** - Open APIs allow data cataloged in Unity Catalog to be accessed by leading compute engines
+- **Multimodal assets** - Supports tables, files, functions, and AI models in a unified catalog
+
+## Supported Compute Engines
+
+Unity Catalog integrates with a wide range of compute engines and data platforms:
+
+<CardGroup cols={2}>
+  <Card title="Apache Spark" icon="fire" href="/integrations/spark">
+    Multi-language engine for data engineering and machine learning
+  </Card>
+  <Card title="DuckDB" icon="database" href="/integrations/duckdb">
+    In-process analytical database with native Unity Catalog support
+  </Card>
+  <Card title="Trino" icon="server" href="/integrations/trino">
+    Distributed SQL query engine for federated queries
+  </Card>
+  <Card title="Daft" icon="chart-bar" href="/integrations/daft">
+    Distributed dataframes for multimodal data processing
+  </Card>
+  <Card title="XTable" icon="table" href="/integrations/xtable">
+    Cross-table interoperability between Hudi, Iceberg, and Delta Lake
+  </Card>
+</CardGroup>
+
+## How It Works
+
+Unity Catalog provides open APIs and connectors that enable compute engines to:
+
+1. **Discover metadata** - Browse catalogs, schemas, tables, and other assets
+2. **Access data** - Read table metadata and data locations
+3. **Vend credentials** - Receive temporary, scoped credentials for secure data access
+4. **Enforce governance** - Apply fine-grained access controls and policies
+
+### API Compatibility
+
+Unity Catalog is compatible with multiple catalog APIs:
+
+- Unity Catalog REST API
+- Apache Hive Metastore API
+- Apache Iceberg REST Catalog API
+
+## Key Benefits
+
+<AccordionGroup>
+  <Accordion title="Unified Governance">
+    Govern and secure all your data and AI assets with a single interface, including fine-grained access control and automated lineage tracking.
+  </Accordion>
+  
+  <Accordion title="Credential Vending">
+    No need to configure credentials for each compute engine. Unity Catalog automatically provides temporary, scoped credentials for secure access.
+  </Accordion>
+  
+  <Accordion title="Decoupled Storage and Compute">
+    Store data in your preferred format and location, then access it from any supported compute engine without code changes.
+  </Accordion>
+  
+  <Accordion title="Open Source">
+    Apache 2.0 licensed implementation with OpenAPI specifications, ensuring transparency and community-driven development.
+  </Accordion>
+</AccordionGroup>
+
+## Integration Matrix
+
+| Engine | Delta Lake | Iceberg | Hudi | Parquet | CSV/JSON |
+|--------|-----------|---------|------|---------|----------|
+| Apache Spark | ✅ | ✅ | ✅ | ✅ | ✅ |
+| DuckDB | ✅ | ❌ | ❌ | ✅ | ✅ |
+| Trino | ✅* | ✅ | ✅* | ✅ | ✅ |
+| Daft | ✅ | ❌ | ❌ | ✅ | ✅ |
+
+<Note>
+  *Via Delta UniForm, which creates Iceberg/Hudi metadata alongside Delta tables
+</Note>
+
+## Getting Started
+
+Choose your preferred compute engine to get started:
+
+<Steps>
+  <Step title="Start Unity Catalog Server">
+    Launch the Unity Catalog server on your local machine or deploy it to your infrastructure.
+    
+    ```bash
+    bin/start-uc-server
+    ```
+  </Step>
+  
+  <Step title="Choose Your Engine">
+    Select the compute engine that best fits your use case and follow the integration guide.
+  </Step>
+  
+  <Step title="Configure Connection">
+    Set up the connection to your Unity Catalog server using the engine-specific connector or configuration.
+  </Step>
+  
+  <Step title="Query Your Data">
+    Start querying tables and accessing data through Unity Catalog's unified interface.
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="Apache Spark" icon="fire" href="/integrations/spark">
+    Read and write tables with PySpark and Scala
+  </Card>
+  <Card title="DuckDB" icon="database" href="/integrations/duckdb">
+    Query Delta tables with DuckDB's uc_catalog extension
+  </Card>
+  <Card title="Trino" icon="server" href="/integrations/trino">
+    Federated queries across Unity Catalog tables
+  </Card>
+  <Card title="Daft" icon="chart-bar" href="/integrations/daft">
+    Distributed dataframe processing
+  </Card>
+  <Card title="XTable" icon="table" href="/integrations/xtable">
+    Multi-format table synchronization
+  </Card>
+</CardGroup>

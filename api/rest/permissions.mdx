@@ -1,0 +1,508 @@
+---
+title: 'Permissions API'
+description: 'Manage Unity Catalog permissions and access control'
+---
+
+# Permissions API
+
+In Unity Catalog, data is secure by default. Access can be granted through the permissions API to control who can access and modify catalog resources.
+
+## Endpoints
+
+### Get Permissions
+
+Gets the permissions for a securable resource.
+
+```http
+GET /api/2.1/unity-catalog/permissions/{securable_type}/{full_name}
+```
+
+#### Path Parameters
+
+<ParamField path="securable_type" type="string" required>
+  Type of securable. One of: `metastore`, `catalog`, `schema`, `table`, `function`, `volume`, `registered_model`, `external_location`, `credential`.
+</ParamField>
+
+<ParamField path="full_name" type="string" required>
+  Full name of securable.
+</ParamField>
+
+#### Query Parameters
+
+<ParamField query="principal" type="string">
+  If provided, only the permissions for the specified principal (user or group) are returned.
+</ParamField>
+
+#### Response
+
+<ResponseField name="privilege_assignments" type="array" required>
+  The privileges assigned to each principal.
+</ResponseField>
+
+#### Privilege Assignment Structure
+
+<ResponseField name="principal" type="string" required>
+  The principal (user email address or group name).
+</ResponseField>
+
+<ResponseField name="privileges" type="array" required>
+  The privileges assigned to the principal.
+</ResponseField>
+
+#### Example
+
+<CodeGroup>
+```bash cURL - Catalog Permissions
+curl -X GET \
+  -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/2.1/unity-catalog/permissions/catalog/analytics_catalog
+```
+
+```bash cURL - Table Permissions for Specific Principal
+curl -X GET \
+  -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8080/api/2.1/unity-catalog/permissions/table/main.default.users?principal=user@example.com"
+```
+
+```python Python
+response = await permissions_api.get_permissions(
+    securable_type="catalog",
+    full_name="analytics_catalog"
+)
+
+for assignment in response.privilege_assignments:
+    print(f"Principal: {assignment.principal}")
+    print(f"Privileges: {', '.join(assignment.privileges)}")
+    print()
+
+# Get permissions for specific principal
+user_perms = await permissions_api.get_permissions(
+    securable_type="table",
+    full_name="main.default.users",
+    principal="user@example.com"
+)
+```
+
+```java Java
+PermissionsList permissions = permissionsApi.get(
+    SecurableType.CATALOG,
+    "analytics_catalog",
+    null  // principal
+);
+
+for (PrivilegeAssignment assignment : permissions.getPrivilegeAssignments()) {
+    System.out.println("Principal: " + assignment.getPrincipal());
+    System.out.println("Privileges: " + assignment.getPrivileges());
+}
+
+// Get permissions for specific principal
+PermissionsList userPerms = permissionsApi.get(
+    SecurableType.TABLE,
+    "main.default.users",
+    "user@example.com"
+);
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "privilege_assignments": [
+    {
+      "principal": "data-engineers@example.com",
+      "privileges": ["USE CATALOG", "CREATE SCHEMA"]
+    },
+    {
+      "principal": "analysts@example.com",
+      "privileges": ["USE CATALOG"]
+    },
+    {
+      "principal": "admin@example.com",
+      "privileges": ["USE CATALOG", "CREATE SCHEMA", "CREATE TABLE"]
+    }
+  ]
+}
+```
+
+---
+
+### Update Permissions
+
+Updates the permissions for a securable resource.
+
+```http
+PATCH /api/2.1/unity-catalog/permissions/{securable_type}/{full_name}
+```
+
+#### Path Parameters
+
+<ParamField path="securable_type" type="string" required>
+  Type of securable. One of: `metastore`, `catalog`, `schema`, `table`, `function`, `volume`, `registered_model`, `external_location`, `credential`.
+</ParamField>
+
+<ParamField path="full_name" type="string" required>
+  Full name of securable.
+</ParamField>
+
+#### Request Body
+
+<ParamField body="changes" type="array" required>
+  Array of permissions change objects.
+</ParamField>
+
+#### Permissions Change Structure
+
+<ParamField body="principal" type="string" required>
+  The principal whose privileges are being changed (user email or group name).
+</ParamField>
+
+<ParamField body="add" type="array" required>
+  The set of privileges to add.
+</ParamField>
+
+<ParamField body="remove" type="array" required>
+  The set of privileges to remove.
+</ParamField>
+
+#### Response
+
+Returns the updated permissions list for the securable.
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X PATCH \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "changes": [
+      {
+        "principal": "data-engineers@example.com",
+        "add": ["CREATE TABLE", "CREATE FUNCTION"],
+        "remove": []
+      },
+      {
+        "principal": "analysts@example.com",
+        "add": ["SELECT"],
+        "remove": ["MODIFY"]
+      }
+    ]
+  }' \
+  http://localhost:8080/api/2.1/unity-catalog/permissions/schema/analytics_catalog.production
+```
+
+```python Python
+from unitycatalog.client import (
+    UpdatePermissions,
+    PermissionsChange
+)
+
+response = await permissions_api.update_permissions(
+    securable_type="schema",
+    full_name="analytics_catalog.production",
+    body=UpdatePermissions(
+        changes=[
+            PermissionsChange(
+                principal="data-engineers@example.com",
+                add=["CREATE TABLE", "CREATE FUNCTION"],
+                remove=[]
+            ),
+            PermissionsChange(
+                principal="analysts@example.com",
+                add=["SELECT"],
+                remove=["MODIFY"]
+            )
+        ]
+    )
+)
+
+for assignment in response.privilege_assignments:
+    print(f"Principal: {assignment.principal}")
+    print(f"Privileges: {', '.join(assignment.privileges)}")
+```
+
+```java Java
+import java.util.Arrays;
+
+PermissionsChange change1 = new PermissionsChange()
+    .principal("data-engineers@example.com")
+    .add(Arrays.asList(Privilege.CREATE_TABLE, Privilege.CREATE_FUNCTION))
+    .remove(Arrays.asList());
+
+PermissionsChange change2 = new PermissionsChange()
+    .principal("analysts@example.com")
+    .add(Arrays.asList(Privilege.SELECT))
+    .remove(Arrays.asList(Privilege.MODIFY));
+
+UpdatePermissions request = new UpdatePermissions()
+    .changes(Arrays.asList(change1, change2));
+
+PermissionsList updated = permissionsApi.update(
+    SecurableType.SCHEMA,
+    "analytics_catalog.production",
+    request
+);
+
+for (PrivilegeAssignment assignment : updated.getPrivilegeAssignments()) {
+    System.out.println("Principal: " + assignment.getPrincipal());
+    System.out.println("Privileges: " + assignment.getPrivileges());
+}
+```
+</CodeGroup>
+
+---
+
+## Privilege Types
+
+Unity Catalog supports the following privilege types:
+
+### Metastore Privileges
+
+<ParamField body="CREATE CATALOG" type="privilege">
+  Enables users to create new catalogs in a metastore.
+</ParamField>
+
+<ParamField body="CREATE STORAGE CREDENTIAL" type="privilege">
+  Required privilege on the metastore to create storage credentials.
+</ParamField>
+
+<ParamField body="CREATE EXTERNAL LOCATION" type="privilege">
+  Required privilege on both the metastore and referenced storage credential to create external locations.
+</ParamField>
+
+### Catalog Privileges
+
+<ParamField body="USE CATALOG" type="privilege">
+  Required to interact with any object within a catalog.
+</ParamField>
+
+<ParamField body="CREATE SCHEMA" type="privilege">
+  Enables users to create new schemas in a catalog.
+</ParamField>
+
+<ParamField body="CREATE MANAGED STORAGE" type="privilege">
+  Allows designating managed storage locations at catalog or schema levels.
+</ParamField>
+
+### Schema Privileges
+
+<ParamField body="USE SCHEMA" type="privilege">
+  Required to interact with any object within a schema.
+</ParamField>
+
+<ParamField body="CREATE TABLE" type="privilege">
+  Allows creating tables or views in a schema.
+</ParamField>
+
+<ParamField body="CREATE FUNCTION" type="privilege">
+  Allows users to create functions or procedures within a schema.
+</ParamField>
+
+<ParamField body="CREATE VOLUME" type="privilege">
+  Enables creating volumes in a schema.
+</ParamField>
+
+<ParamField body="CREATE MODEL" type="privilege">
+  Permits establishing MLflow registered models in a schema.
+</ParamField>
+
+### Table Privileges
+
+<ParamField body="SELECT" type="privilege">
+  Enables querying tables, views, and materialized views.
+</ParamField>
+
+<ParamField body="MODIFY" type="privilege">
+  Enables adding, updating, and deleting data within tables (requires SELECT privilege also).
+</ParamField>
+
+### Function Privileges
+
+<ParamField body="EXECUTE" type="privilege">
+  Permits invoking user-defined functions or loading models for inference.
+</ParamField>
+
+### Volume Privileges
+
+<ParamField body="READ VOLUME" type="privilege">
+  Permits reading files and directories within volumes.
+</ParamField>
+
+### External Location Privileges
+
+<ParamField body="READ FILES" type="privilege">
+  Grants direct read access to files in cloud storage configured as external locations.
+</ParamField>
+
+<ParamField body="WRITE FILES" type="privilege">
+  Grants direct write access to files in cloud storage configured as external locations.
+</ParamField>
+
+<ParamField body="CREATE EXTERNAL TABLE" type="privilege">
+  Enables creating external tables through external locations.
+</ParamField>
+
+<ParamField body="CREATE EXTERNAL VOLUME" type="privilege">
+  Enables creating external volumes through external locations.
+</ParamField>
+
+---
+
+## Securable Types
+
+- **metastore** - Top-level container of objects
+- **catalog** - First layer of namespace
+- **schema** - Second layer of namespace (database)
+- **table** - Data tables
+- **function** - User-defined functions
+- **volume** - File storage volumes
+- **registered_model** - ML model registry
+- **external_location** - External storage locations
+- **credential** - Storage credentials
+
+---
+
+## Principal Types
+
+### Users
+
+Individual user identified by email address:
+```
+user@example.com
+```
+
+### Groups
+
+Group of users identified by group name:
+```
+data-engineers@example.com
+analysts-team
+```
+
+---
+
+## Permission Management Examples
+
+### Grant Catalog Access
+
+```bash
+curl -X PATCH \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "changes": [
+      {
+        "principal": "analysts@example.com",
+        "add": ["USE CATALOG"],
+        "remove": []
+      }
+    ]
+  }' \
+  http://localhost:8080/api/2.1/unity-catalog/permissions/catalog/analytics_catalog
+```
+
+### Grant Schema Creation Rights
+
+```bash
+curl -X PATCH \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "changes": [
+      {
+        "principal": "data-engineers@example.com",
+        "add": ["USE CATALOG", "CREATE SCHEMA"],
+        "remove": []
+      }
+    ]
+  }' \
+  http://localhost:8080/api/2.1/unity-catalog/permissions/catalog/analytics_catalog
+```
+
+### Grant Table Read Access
+
+```bash
+curl -X PATCH \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "changes": [
+      {
+        "principal": "analysts@example.com",
+        "add": ["SELECT"],
+        "remove": []
+      }
+    ]
+  }' \
+  http://localhost:8080/api/2.1/unity-catalog/permissions/table/main.default.users
+```
+
+### Revoke Permissions
+
+```bash
+curl -X PATCH \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "changes": [
+      {
+        "principal": "analysts@example.com",
+        "add": [],
+        "remove": ["MODIFY"]
+      }
+    ]
+  }' \
+  http://localhost:8080/api/2.1/unity-catalog/permissions/table/main.default.users
+```
+
+---
+
+## Error Responses
+
+### 403 Forbidden
+
+```json
+{
+  "error": "Forbidden",
+  "message": "User does not have permission to modify permissions"
+}
+```
+
+### 404 Not Found
+
+```json
+{
+  "error": "Not Found",
+  "message": "Securable 'analytics_catalog' not found"
+}
+```
+
+---
+
+## Best Practices
+
+1. **Principle of Least Privilege** - Grant only the minimum permissions necessary
+2. **Use Groups** - Manage permissions at the group level rather than individual users
+3. **Regular Audits** - Periodically review and audit permissions
+4. **Document Changes** - Keep track of permission changes and reasons
+5. **Hierarchical Access** - Remember that access requires permissions at all levels (catalog, schema, table)
+
+---
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="shield" href="/api/rest/authentication">
+    Learn about authentication
+  </Card>
+  <Card title="Catalogs API" icon="database" href="/api/rest/catalogs">
+    Manage catalogs
+  </Card>
+  <Card title="Python SDK" icon="python" href="/api/python-sdk">
+    Use the Python client
+  </Card>
+  <Card title="Java SDK" icon="java" href="/api/java-sdk">
+    Use the Java client
+  </Card>
+</CardGroup>

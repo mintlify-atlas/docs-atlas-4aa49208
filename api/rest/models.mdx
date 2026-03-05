@@ -1,0 +1,720 @@
+---
+title: 'Models API'
+description: 'Create and manage Unity Catalog registered models and model versions'
+---
+
+# Models API
+
+Registered models are machine learning models that are stored within the Unity Catalog model registry. They are comprised of all versions of a single model that a user wishes to keep.
+
+<Warning>
+  This API is experimental and will change in future versions.
+</Warning>
+
+## Registered Models
+
+### Create Registered Model
+
+Creates a new registered model instance.
+
+```http
+POST /api/2.1/unity-catalog/models
+```
+
+#### Request Body
+
+<ParamField body="name" type="string" required>
+  Name of model, relative to parent schema.
+</ParamField>
+
+<ParamField body="catalog_name" type="string" required>
+  Name of parent catalog.
+</ParamField>
+
+<ParamField body="schema_name" type="string" required>
+  Name of parent schema relative to its parent catalog.
+</ParamField>
+
+<ParamField body="comment" type="string">
+  User-provided free-form text description.
+</ParamField>
+
+#### Response
+
+<ResponseField name="name" type="string">
+  The name of the registered model.
+</ResponseField>
+
+<ResponseField name="catalog_name" type="string">
+  Name of the catalog containing the model.
+</ResponseField>
+
+<ResponseField name="schema_name" type="string">
+  Name of the schema containing the model.
+</ResponseField>
+
+<ResponseField name="full_name" type="string">
+  The three-level (fully qualified) name of the registered model.
+</ResponseField>
+
+<ResponseField name="id" type="string">
+  Unique identifier for the registered model.
+</ResponseField>
+
+<ResponseField name="storage_location" type="string">
+  Storage location on the cloud under which model version data files are stored.
+</ResponseField>
+
+<ResponseField name="owner" type="string">
+  The identifier of the user who owns the registered model.
+</ResponseField>
+
+<ResponseField name="created_at" type="integer">
+  Creation timestamp in milliseconds since Unix epoch.
+</ResponseField>
+
+<ResponseField name="created_by" type="string">
+  The identifier of the user who created the model.
+</ResponseField>
+
+<ResponseField name="updated_at" type="integer">
+  Last-update timestamp in milliseconds since Unix epoch.
+</ResponseField>
+
+<ResponseField name="updated_by" type="string">
+  The identifier of the user who updated the model last time.
+</ResponseField>
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "fraud_detection_model",
+    "catalog_name": "main",
+    "schema_name": "ml_models",
+    "comment": "Model for detecting fraudulent transactions"
+  }' \
+  http://localhost:8080/api/2.1/unity-catalog/models
+```
+
+```python Python
+from unitycatalog.client import CreateRegisteredModel
+
+model = await models_api.create_registered_model(
+    CreateRegisteredModel(
+        name="fraud_detection_model",
+        catalog_name="main",
+        schema_name="ml_models",
+        comment="Model for detecting fraudulent transactions"
+    )
+)
+print(f"Created model: {model.full_name}")
+print(f"Storage location: {model.storage_location}")
+```
+
+```java Java
+CreateRegisteredModel request = new CreateRegisteredModel()
+    .name("fraud_detection_model")
+    .catalogName("main")
+    .schemaName("ml_models")
+    .comment("Model for detecting fraudulent transactions");
+
+RegisteredModelInfo model = modelsApi.createRegisteredModel(request);
+System.out.println("Created model: " + model.getFullName());
+```
+</CodeGroup>
+
+---
+
+### List Registered Models
+
+Gets a paginated list of all available models either under the specified parent catalog and schema, or all models stored in Unity Catalog.
+
+```http
+GET /api/2.1/unity-catalog/models
+```
+
+#### Query Parameters
+
+<ParamField query="catalog_name" type="string">
+  Name of parent catalog for models of interest.
+</ParamField>
+
+<ParamField query="schema_name" type="string">
+  Name of parent schema for models of interest.
+</ParamField>
+
+<ParamField query="max_results" type="integer">
+  Maximum number of models to return. Maximum: 50.
+</ParamField>
+
+<ParamField query="page_token" type="string">
+  Opaque token to send for the next page of results (pagination).
+</ParamField>
+
+#### Response
+
+<ResponseField name="registered_models" type="array">
+  An array of model information objects.
+</ResponseField>
+
+<ResponseField name="next_page_token" type="string">
+  Opaque token to retrieve the next page of results.
+</ResponseField>
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X GET \
+  -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8080/api/2.1/unity-catalog/models?catalog_name=main&schema_name=ml_models&max_results=50"
+```
+
+```python Python
+response = await models_api.list_registered_models(
+    catalog_name="main",
+    schema_name="ml_models",
+    max_results=50
+)
+
+for model in response.registered_models:
+    print(f"Model: {model.full_name}")
+    print(f"  Owner: {model.owner}")
+    print(f"  Created: {model.created_at}")
+```
+
+```java Java
+ListRegisteredModelsResponse response = modelsApi.listRegisteredModels(
+    "main",
+    "ml_models",
+    50,    // maxResults
+    null   // pageToken
+);
+
+for (RegisteredModelInfo model : response.getRegisteredModels()) {
+    System.out.println("Model: " + model.getFullName());
+}
+```
+</CodeGroup>
+
+---
+
+### Get Registered Model
+
+Gets a fully specified registered model.
+
+```http
+GET /api/2.1/unity-catalog/models/{full_name}
+```
+
+#### Path Parameters
+
+<ParamField path="full_name" type="string" required>
+  Full name of the model (e.g., `catalog_name.schema_name.model_name`).
+</ParamField>
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X GET \
+  -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/2.1/unity-catalog/models/main.ml_models.fraud_detection_model
+```
+
+```python Python
+model = await models_api.get_registered_model(
+    "main.ml_models.fraud_detection_model"
+)
+
+print(f"Model: {model.name}")
+print(f"Full Name: {model.full_name}")
+print(f"Storage: {model.storage_location}")
+print(f"Owner: {model.owner}")
+print(f"Comment: {model.comment}")
+```
+
+```java Java
+RegisteredModelInfo model = modelsApi.getRegisteredModel(
+    "main.ml_models.fraud_detection_model"
+);
+
+System.out.println("Model: " + model.getName());
+System.out.println("Storage: " + model.getStorageLocation());
+```
+</CodeGroup>
+
+---
+
+### Update Registered Model
+
+Updates the specified registered model.
+
+```http
+PATCH /api/2.1/unity-catalog/models/{full_name}
+```
+
+#### Path Parameters
+
+<ParamField path="full_name" type="string" required>
+  Full name of the model to update.
+</ParamField>
+
+#### Request Body
+
+<ParamField body="comment" type="string">
+  User-provided free-form text description.
+</ParamField>
+
+<ParamField body="new_name" type="string">
+  New name for the model.
+</ParamField>
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X PATCH \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "comment": "Updated fraud detection model with improved accuracy"
+  }' \
+  http://localhost:8080/api/2.1/unity-catalog/models/main.ml_models.fraud_detection_model
+```
+
+```python Python
+from unitycatalog.client import UpdateRegisteredModel
+
+updated = await models_api.update_registered_model(
+    "main.ml_models.fraud_detection_model",
+    UpdateRegisteredModel(
+        comment="Updated fraud detection model with improved accuracy"
+    )
+)
+```
+
+```java Java
+UpdateRegisteredModel request = new UpdateRegisteredModel()
+    .comment("Updated fraud detection model with improved accuracy");
+
+RegisteredModelInfo updated = modelsApi.updateRegisteredModel(
+    "main.ml_models.fraud_detection_model",
+    request
+);
+```
+</CodeGroup>
+
+---
+
+### Delete Registered Model
+
+Deletes a fully specified registered model. All versions of the model must have already been deleted.
+
+```http
+DELETE /api/2.1/unity-catalog/models/{full_name}
+```
+
+#### Path Parameters
+
+<ParamField path="full_name" type="string" required>
+  Full name of the model to delete.
+</ParamField>
+
+#### Query Parameters
+
+<ParamField query="force" type="boolean" default="false">
+  Force deletion even if the registered model still has model versions.
+</ParamField>
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE \
+  -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8080/api/2.1/unity-catalog/models/main.ml_models.fraud_detection_model?force=false"
+```
+
+```python Python
+await models_api.delete_registered_model(
+    "main.ml_models.fraud_detection_model",
+    force=False
+)
+print("Model deleted successfully")
+```
+
+```java Java
+modelsApi.deleteRegisteredModel(
+    "main.ml_models.fraud_detection_model",
+    false  // force
+);
+```
+</CodeGroup>
+
+---
+
+## Model Versions
+
+### Create Model Version
+
+Creates a new model version instance.
+
+```http
+POST /api/2.1/unity-catalog/models/versions
+```
+
+#### Request Body
+
+<ParamField body="model_name" type="string" required>
+  Name of registered model, relative to parent schema.
+</ParamField>
+
+<ParamField body="catalog_name" type="string" required>
+  Name of parent catalog.
+</ParamField>
+
+<ParamField body="schema_name" type="string" required>
+  Name of parent schema relative to its parent catalog.
+</ParamField>
+
+<ParamField body="source" type="string" required>
+  URI indicating the location of the source model artifacts.
+</ParamField>
+
+<ParamField body="run_id" type="string">
+  The run id used by the ML package that generated the model.
+</ParamField>
+
+<ParamField body="comment" type="string">
+  User-provided free-form text description.
+</ParamField>
+
+#### Response
+
+<ResponseField name="model_name" type="string">
+  Name of the parent registered model.
+</ResponseField>
+
+<ResponseField name="version" type="integer">
+  Integer model version number.
+</ResponseField>
+
+<ResponseField name="source" type="string">
+  URI indicating the location of the source artifacts.
+</ResponseField>
+
+<ResponseField name="storage_location" type="string">
+  Storage location on the cloud under which model version data files are stored.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Status of the model version. One of: `PENDING_REGISTRATION`, `FAILED_REGISTRATION`, `READY`.
+</ResponseField>
+
+<ResponseField name="id" type="string">
+  Unique identifier for the model version.
+</ResponseField>
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model_name": "fraud_detection_model",
+    "catalog_name": "main",
+    "schema_name": "ml_models",
+    "source": "s3://my-bucket/models/fraud_detection/v1",
+    "run_id": "abc123",
+    "comment": "Initial model version"
+  }' \
+  http://localhost:8080/api/2.1/unity-catalog/models/versions
+```
+
+```python Python
+from unitycatalog.client import CreateModelVersion
+
+version = await model_versions_api.create_model_version(
+    CreateModelVersion(
+        model_name="fraud_detection_model",
+        catalog_name="main",
+        schema_name="ml_models",
+        source="s3://my-bucket/models/fraud_detection/v1",
+        run_id="abc123",
+        comment="Initial model version"
+    )
+)
+print(f"Created model version: {version.version}")
+print(f"Status: {version.status}")
+print(f"Storage: {version.storage_location}")
+```
+
+```java Java
+CreateModelVersion request = new CreateModelVersion()
+    .modelName("fraud_detection_model")
+    .catalogName("main")
+    .schemaName("ml_models")
+    .source("s3://my-bucket/models/fraud_detection/v1")
+    .runId("abc123")
+    .comment("Initial model version");
+
+ModelVersionInfo version = modelVersionsApi.createModelVersion(request);
+System.out.println("Created version: " + version.getVersion());
+```
+</CodeGroup>
+
+---
+
+### List Model Versions
+
+Gets the paginated list of all available model versions under the specified registered model.
+
+```http
+GET /api/2.1/unity-catalog/models/{full_name}/versions
+```
+
+#### Path Parameters
+
+<ParamField path="full_name" type="string" required>
+  Full name of the registered model.
+</ParamField>
+
+#### Query Parameters
+
+<ParamField query="max_results" type="integer">
+  Maximum number of model versions to return. Maximum: 50.
+</ParamField>
+
+<ParamField query="page_token" type="string">
+  Opaque token to send for the next page of results.
+</ParamField>
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X GET \
+  -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8080/api/2.1/unity-catalog/models/main.ml_models.fraud_detection_model/versions?max_results=50"
+```
+
+```python Python
+response = await model_versions_api.list_model_versions(
+    "main.ml_models.fraud_detection_model",
+    max_results=50
+)
+
+for version in response.model_versions:
+    print(f"Version: {version.version}")
+    print(f"  Status: {version.status}")
+    print(f"  Source: {version.source}")
+    print(f"  Created: {version.created_at}")
+```
+
+```java Java
+ListModelVersionsResponse response = modelVersionsApi.listModelVersions(
+    "main.ml_models.fraud_detection_model",
+    50,    // maxResults
+    null   // pageToken
+);
+
+for (ModelVersionInfo version : response.getModelVersions()) {
+    System.out.println("Version: " + version.getVersion());
+    System.out.println("  Status: " + version.getStatus());
+}
+```
+</CodeGroup>
+
+---
+
+### Get Model Version
+
+Gets a specific model version for a specific model.
+
+```http
+GET /api/2.1/unity-catalog/models/{full_name}/versions/{version}
+```
+
+#### Path Parameters
+
+<ParamField path="full_name" type="string" required>
+  Full name of the model.
+</ParamField>
+
+<ParamField path="version" type="integer" required>
+  Version number of the model version.
+</ParamField>
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X GET \
+  -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/2.1/unity-catalog/models/main.ml_models.fraud_detection_model/versions/1
+```
+
+```python Python
+version = await model_versions_api.get_model_version(
+    "main.ml_models.fraud_detection_model",
+    1
+)
+
+print(f"Version: {version.version}")
+print(f"Status: {version.status}")
+print(f"Source: {version.source}")
+print(f"Storage: {version.storage_location}")
+print(f"Run ID: {version.run_id}")
+```
+
+```java Java
+ModelVersionInfo version = modelVersionsApi.getModelVersion(
+    "main.ml_models.fraud_detection_model",
+    1L
+);
+
+System.out.println("Version: " + version.getVersion());
+System.out.println("Status: " + version.getStatus());
+```
+</CodeGroup>
+
+---
+
+### Update Model Version
+
+Updates the specified model version.
+
+```http
+PATCH /api/2.1/unity-catalog/models/{full_name}/versions/{version}
+```
+
+#### Path Parameters
+
+<ParamField path="full_name" type="string" required>
+  Full name of the model.
+</ParamField>
+
+<ParamField path="version" type="integer" required>
+  Version number of the model version.
+</ParamField>
+
+#### Request Body
+
+<ParamField body="comment" type="string">
+  User-provided free-form text description.
+</ParamField>
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X PATCH \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "comment": "Production-ready version with 95% accuracy"
+  }' \
+  http://localhost:8080/api/2.1/unity-catalog/models/main.ml_models.fraud_detection_model/versions/1
+```
+
+```python Python
+from unitycatalog.client import UpdateModelVersion
+
+updated = await model_versions_api.update_model_version(
+    "main.ml_models.fraud_detection_model",
+    1,
+    UpdateModelVersion(
+        comment="Production-ready version with 95% accuracy"
+    )
+)
+```
+
+```java Java
+UpdateModelVersion request = new UpdateModelVersion()
+    .comment("Production-ready version with 95% accuracy");
+
+ModelVersionInfo updated = modelVersionsApi.updateModelVersion(
+    "main.ml_models.fraud_detection_model",
+    1L,
+    request
+);
+```
+</CodeGroup>
+
+---
+
+### Delete Model Version
+
+Deletes the specified model version.
+
+```http
+DELETE /api/2.1/unity-catalog/models/{full_name}/versions/{version}
+```
+
+#### Path Parameters
+
+<ParamField path="full_name" type="string" required>
+  Full name of the model.
+</ParamField>
+
+<ParamField path="version" type="integer" required>
+  Version number of the model version to delete.
+</ParamField>
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE \
+  -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/2.1/unity-catalog/models/main.ml_models.fraud_detection_model/versions/1
+```
+
+```python Python
+await model_versions_api.delete_model_version(
+    "main.ml_models.fraud_detection_model",
+    1
+)
+print("Model version deleted successfully")
+```
+
+```java Java
+modelVersionsApi.deleteModelVersion(
+    "main.ml_models.fraud_detection_model",
+    1L
+);
+```
+</CodeGroup>
+
+---
+
+## Model Version Status
+
+- **PENDING_REGISTRATION** - Client has not completely written all model artifacts to external storage
+- **FAILED_REGISTRATION** - Client has failed to write all model artifacts to external storage
+- **READY** - Client has successfully written all model artifacts to external storage
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Schemas API" icon="layer-group" href="/api/rest/schemas">
+    Manage parent schemas
+  </Card>
+  <Card title="Credentials API" icon="key" href="/api/rest/credentials">
+    Generate model credentials
+  </Card>
+  <Card title="Python SDK" icon="python" href="/api/python-sdk">
+    Use the Python client
+  </Card>
+  <Card title="Java SDK" icon="java" href="/api/java-sdk">
+    Use the Java client
+  </Card>
+</CardGroup>

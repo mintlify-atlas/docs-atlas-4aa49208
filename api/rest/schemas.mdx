@@ -1,0 +1,421 @@
+---
+title: 'Schemas API'
+description: 'Create and manage Unity Catalog schemas'
+---
+
+# Schemas API
+
+A schema (also called a database) is the second layer of Unity Catalog's three-level namespace. A schema organizes tables, volumes, and functions.
+
+## Endpoints
+
+### Create Schema
+
+Creates a new schema in the specified catalog.
+
+```http
+POST /api/2.1/unity-catalog/schemas
+```
+
+#### Request Body
+
+<ParamField body="name" type="string" required>
+  Name of schema, relative to parent catalog.
+</ParamField>
+
+<ParamField body="catalog_name" type="string" required>
+  Name of parent catalog.
+</ParamField>
+
+<ParamField body="comment" type="string">
+  User-provided free-form text description.
+</ParamField>
+
+<ParamField body="properties" type="object">
+  A map of key-value properties attached to the schema.
+</ParamField>
+
+<ParamField body="storage_root" type="string">
+  Storage root URL for managed storage location of schema. Example: `s3://bucket/ucroot`
+</ParamField>
+
+#### Response
+
+<ResponseField name="name" type="string">
+  Name of schema, relative to parent catalog.
+</ResponseField>
+
+<ResponseField name="catalog_name" type="string">
+  Name of parent catalog.
+</ResponseField>
+
+<ResponseField name="full_name" type="string">
+  Full name of schema, in form of `catalog_name.schema_name`.
+</ResponseField>
+
+<ResponseField name="schema_id" type="string">
+  Unique identifier for the schema.
+</ResponseField>
+
+<ResponseField name="comment" type="string">
+  User-provided free-form text description.
+</ResponseField>
+
+<ResponseField name="owner" type="string">
+  Username of current owner of schema.
+</ResponseField>
+
+<ResponseField name="created_at" type="integer">
+  Time at which this schema was created, in epoch milliseconds.
+</ResponseField>
+
+<ResponseField name="storage_root" type="string">
+  Storage root URL for managed storage location of schema.
+</ResponseField>
+
+<ResponseField name="storage_location" type="string">
+  Storage Location URL (full path) for managed storage location of schema.
+</ResponseField>
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "production",
+    "catalog_name": "analytics_catalog",
+    "comment": "Production data schema",
+    "properties": {
+      "environment": "prod",
+      "team": "data-engineering"
+    }
+  }' \
+  http://localhost:8080/api/2.1/unity-catalog/schemas
+```
+
+```python Python
+from unitycatalog.client import CreateSchema
+
+schema = await schemas_api.create_schema(
+    CreateSchema(
+        name="production",
+        catalog_name="analytics_catalog",
+        comment="Production data schema",
+        properties={
+            "environment": "prod",
+            "team": "data-engineering"
+        }
+    )
+)
+print(f"Created schema: {schema.full_name}")
+```
+
+```java Java
+CreateSchema request = new CreateSchema()
+    .name("production")
+    .catalogName("analytics_catalog")
+    .comment("Production data schema")
+    .properties(Map.of(
+        "environment", "prod",
+        "team", "data-engineering"
+    ));
+
+SchemaInfo schema = schemasApi.createSchema(request);
+System.out.println("Created schema: " + schema.getFullName());
+```
+</CodeGroup>
+
+---
+
+### List Schemas
+
+Gets an array of schemas for a catalog. There is no guarantee of a specific ordering of the elements in the array.
+
+```http
+GET /api/2.1/unity-catalog/schemas
+```
+
+#### Query Parameters
+
+<ParamField query="catalog_name" type="string" required>
+  Parent catalog for schemas of interest.
+</ParamField>
+
+<ParamField query="max_results" type="integer">
+  Maximum number of schemas to return. Maximum: 1000.
+</ParamField>
+
+<ParamField query="page_token" type="string">
+  Opaque pagination token to go to next page based on previous query.
+</ParamField>
+
+#### Response
+
+<ResponseField name="schemas" type="array">
+  An array of schema information objects.
+</ResponseField>
+
+<ResponseField name="next_page_token" type="string">
+  Opaque token to retrieve the next page of results. Absent if there are no more pages.
+</ResponseField>
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X GET \
+  -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8080/api/2.1/unity-catalog/schemas?catalog_name=analytics_catalog&max_results=100"
+```
+
+```python Python
+response = await schemas_api.list_schemas(
+    catalog_name="analytics_catalog",
+    max_results=100
+)
+
+for schema in response.schemas:
+    print(f"Schema: {schema.full_name}")
+    print(f"  Owner: {schema.owner}")
+    print(f"  Created: {schema.created_at}")
+```
+
+```java Java
+ListSchemasResponse response = schemasApi.listSchemas(
+    "analytics_catalog",
+    100,   // maxResults
+    null   // pageToken
+);
+
+for (SchemaInfo schema : response.getSchemas()) {
+    System.out.println("Schema: " + schema.getFullName());
+}
+```
+</CodeGroup>
+
+---
+
+### Get Schema
+
+Gets the specified schema for a catalog.
+
+```http
+GET /api/2.1/unity-catalog/schemas/{full_name}
+```
+
+#### Path Parameters
+
+<ParamField path="full_name" type="string" required>
+  Full name of the schema (e.g., `catalog_name.schema_name`).
+</ParamField>
+
+#### Response
+
+Returns a schema information object with all fields described in [Create Schema](#create-schema).
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X GET \
+  -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/2.1/unity-catalog/schemas/analytics_catalog.production
+```
+
+```python Python
+schema = await schemas_api.get_schema("analytics_catalog.production")
+
+print(f"Schema: {schema.full_name}")
+print(f"ID: {schema.schema_id}")
+print(f"Owner: {schema.owner}")
+print(f"Storage Root: {schema.storage_root}")
+```
+
+```java Java
+SchemaInfo schema = schemasApi.getSchema("analytics_catalog.production");
+
+System.out.println("Schema: " + schema.getFullName());
+System.out.println("Owner: " + schema.getOwner());
+```
+</CodeGroup>
+
+---
+
+### Update Schema
+
+Updates the specified schema.
+
+```http
+PATCH /api/2.1/unity-catalog/schemas/{full_name}
+```
+
+#### Path Parameters
+
+<ParamField path="full_name" type="string" required>
+  Full name of the schema to update.
+</ParamField>
+
+#### Request Body
+
+<ParamField body="comment" type="string">
+  User-provided free-form text description.
+</ParamField>
+
+<ParamField body="properties" type="object">
+  A map of key-value properties attached to the schema.
+</ParamField>
+
+<ParamField body="new_name" type="string">
+  New name for the schema.
+</ParamField>
+
+#### Response
+
+Returns the updated schema information object.
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X PATCH \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "comment": "Updated production schema",
+    "properties": {
+      "environment": "prod",
+      "version": "2.0"
+    }
+  }' \
+  http://localhost:8080/api/2.1/unity-catalog/schemas/analytics_catalog.production
+```
+
+```python Python
+from unitycatalog.client import UpdateSchema
+
+updated = await schemas_api.update_schema(
+    "analytics_catalog.production",
+    UpdateSchema(
+        comment="Updated production schema",
+        properties={
+            "environment": "prod",
+            "version": "2.0"
+        }
+    )
+)
+```
+
+```java Java
+UpdateSchema request = new UpdateSchema()
+    .comment("Updated production schema")
+    .properties(Map.of(
+        "environment", "prod",
+        "version", "2.0"
+    ));
+
+SchemaInfo updated = schemasApi.updateSchema(
+    "analytics_catalog.production",
+    request
+);
+```
+</CodeGroup>
+
+---
+
+### Delete Schema
+
+Deletes the specified schema from the parent catalog.
+
+```http
+DELETE /api/2.1/unity-catalog/schemas/{full_name}
+```
+
+#### Path Parameters
+
+<ParamField path="full_name" type="string" required>
+  Full name of the schema to delete.
+</ParamField>
+
+#### Query Parameters
+
+<ParamField query="force" type="boolean" default="false">
+  Force deletion even if the schema is not empty.
+</ParamField>
+
+#### Response
+
+Returns an empty response on success.
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE \
+  -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8080/api/2.1/unity-catalog/schemas/analytics_catalog.production?force=false"
+```
+
+```python Python
+await schemas_api.delete_schema(
+    "analytics_catalog.production",
+    force=False
+)
+print("Schema deleted successfully")
+```
+
+```java Java
+schemasApi.deleteSchema("analytics_catalog.production", false);
+System.out.println("Schema deleted successfully");
+```
+</CodeGroup>
+
+---
+
+## Error Responses
+
+### 400 Bad Request
+
+```json
+{
+  "error": "Bad Request",
+  "message": "Schema name cannot be empty"
+}
+```
+
+### 404 Not Found
+
+```json
+{
+  "error": "Not Found",
+  "message": "Schema 'analytics_catalog.production' not found"
+}
+```
+
+### 409 Conflict
+
+```json
+{
+  "error": "Conflict",
+  "message": "Schema 'production' already exists in catalog 'analytics_catalog'"
+}
+```
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Tables API" icon="table" href="/api/rest/tables">
+    Create tables within schemas
+  </Card>
+  <Card title="Volumes API" icon="folder" href="/api/rest/volumes">
+    Create volumes within schemas
+  </Card>
+  <Card title="Functions API" icon="function" href="/api/rest/functions">
+    Create functions within schemas
+  </Card>
+  <Card title="Catalogs API" icon="database" href="/api/rest/catalogs">
+    Manage parent catalogs
+  </Card>
+</CardGroup>

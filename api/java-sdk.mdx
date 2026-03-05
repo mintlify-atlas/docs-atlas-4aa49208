@@ -1,0 +1,503 @@
+---
+title: 'Java SDK'
+description: 'Unity Catalog Java client library reference'
+---
+
+# Java SDK
+
+The Unity Catalog Java SDK provides a type-safe client library for interacting with Unity Catalog APIs.
+
+## Installation
+
+### Maven
+
+Add the following dependency to your `pom.xml`:
+
+```xml
+<dependency>
+  <groupId>io.unitycatalog</groupId>
+  <artifactId>unitycatalog-client</artifactId>
+  <version>0.3.0</version>
+</dependency>
+```
+
+### Gradle
+
+Add the following to your `build.gradle`:
+
+```groovy
+implementation 'io.unitycatalog:unitycatalog-client:0.3.0'
+```
+
+## Quick Start
+
+### Basic Setup
+
+```java
+import io.unitycatalog.client.ApiClient;
+import io.unitycatalog.client.ApiClientBuilder;
+import io.unitycatalog.client.auth.TokenProvider;
+import io.unitycatalog.client.auth.StaticTokenProvider;
+import io.unitycatalog.client.api.CatalogsApi;
+import io.unitycatalog.client.api.SchemasApi;
+import io.unitycatalog.client.api.TablesApi;
+
+import java.net.URI;
+import java.util.HashMap;
+import java.util.Map;
+
+public class UnityCatalogExample {
+    public static void main(String[] args) {
+        // Create a token provider
+        Map<String, String> configMap = new HashMap<>();
+        configMap.put("token", "YOUR_ACCESS_TOKEN");
+        
+        TokenProvider tokenProvider = TokenProvider.create(configMap);
+        
+        // Build the API client
+        ApiClient client = ApiClientBuilder.create()
+            .uri("http://localhost:8080")
+            .tokenProvider(tokenProvider)
+            .build();
+        
+        // Initialize API instances
+        CatalogsApi catalogsApi = new CatalogsApi(client);
+        SchemasApi schemasApi = new SchemasApi(client);
+        TablesApi tablesApi = new TablesApi(client);
+    }
+}
+```
+
+### Using Static Token Provider
+
+```java
+import io.unitycatalog.client.auth.StaticTokenProvider;
+
+// Simple static token authentication
+TokenProvider tokenProvider = new StaticTokenProvider("YOUR_ACCESS_TOKEN");
+
+ApiClient client = ApiClientBuilder.create()
+    .uri("http://localhost:8080")
+    .tokenProvider(tokenProvider)
+    .build();
+```
+
+### Custom Configuration
+
+```java
+import io.unitycatalog.client.retry.JitterDelayRetryPolicy;
+import io.unitycatalog.client.retry.RetryPolicy;
+
+// Configure retry policy
+RetryPolicy retryPolicy = JitterDelayRetryPolicy.builder()
+    .maxAttempts(5)
+    .build();
+
+// Build client with custom settings
+ApiClient client = ApiClientBuilder.create()
+    .uri(URI.create("http://localhost:8080"))
+    .tokenProvider(tokenProvider)
+    .retryPolicy(retryPolicy)
+    .addAppVersion("MyApp", "1.0.0")
+    .build();
+```
+
+## Working with Catalogs
+
+### List Catalogs
+
+```java
+import io.unitycatalog.client.model.ListCatalogsResponse;
+import io.unitycatalog.client.model.CatalogInfo;
+
+public void listCatalogs(CatalogsApi catalogsApi) throws ApiException {
+    ListCatalogsResponse response = catalogsApi.listCatalogs(
+        null,  // pageToken
+        100    // maxResults
+    );
+    
+    for (CatalogInfo catalog : response.getCatalogs()) {
+        System.out.println("Catalog: " + catalog.getName());
+        System.out.println("  ID: " + catalog.getId());
+        System.out.println("  Owner: " + catalog.getOwner());
+        System.out.println("  Created: " + catalog.getCreatedAt());
+    }
+}
+```
+
+### Create a Catalog
+
+```java
+import io.unitycatalog.client.model.CreateCatalog;
+import io.unitycatalog.client.model.CatalogInfo;
+
+import java.util.HashMap;
+import java.util.Map;
+
+public CatalogInfo createCatalog(CatalogsApi catalogsApi) throws ApiException {
+    Map<String, String> properties = new HashMap<>();
+    properties.put("team", "data-engineering");
+    properties.put("environment", "production");
+    
+    CreateCatalog request = new CreateCatalog()
+        .name("my_catalog")
+        .comment("My first catalog")
+        .properties(properties);
+    
+    CatalogInfo catalog = catalogsApi.createCatalog(request);
+    System.out.println("Created catalog: " + catalog.getName());
+    
+    return catalog;
+}
+```
+
+### Get Catalog Details
+
+```java
+public CatalogInfo getCatalog(CatalogsApi catalogsApi, String name) 
+        throws ApiException {
+    CatalogInfo catalog = catalogsApi.getCatalog(name);
+    
+    System.out.println("Catalog: " + catalog.getName());
+    System.out.println("Owner: " + catalog.getOwner());
+    System.out.println("Comment: " + catalog.getComment());
+    System.out.println("Storage Root: " + catalog.getStorageRoot());
+    
+    return catalog;
+}
+```
+
+### Update a Catalog
+
+```java
+import io.unitycatalog.client.model.UpdateCatalog;
+
+public CatalogInfo updateCatalog(CatalogsApi catalogsApi, String name) 
+        throws ApiException {
+    UpdateCatalog request = new UpdateCatalog()
+        .comment("Updated catalog description")
+        .newName("renamed_catalog");
+    
+    CatalogInfo updated = catalogsApi.updateCatalog(name, request);
+    return updated;
+}
+```
+
+### Delete a Catalog
+
+```java
+public void deleteCatalog(CatalogsApi catalogsApi, String name) 
+        throws ApiException {
+    catalogsApi.deleteCatalog(name, false); // force = false
+    System.out.println("Deleted catalog: " + name);
+}
+```
+
+## Working with Schemas
+
+### Create a Schema
+
+```java
+import io.unitycatalog.client.model.CreateSchema;
+import io.unitycatalog.client.model.SchemaInfo;
+
+public SchemaInfo createSchema(SchemasApi schemasApi) throws ApiException {
+    CreateSchema request = new CreateSchema()
+        .name("my_schema")
+        .catalogName("my_catalog")
+        .comment("My first schema");
+    
+    SchemaInfo schema = schemasApi.createSchema(request);
+    System.out.println("Created schema: " + schema.getFullName());
+    
+    return schema;
+}
+```
+
+### List Schemas
+
+```java
+import io.unitycatalog.client.model.ListSchemasResponse;
+import io.unitycatalog.client.model.SchemaInfo;
+
+public void listSchemas(SchemasApi schemasApi, String catalogName) 
+        throws ApiException {
+    ListSchemasResponse response = schemasApi.listSchemas(
+        catalogName,
+        100,   // maxResults
+        null   // pageToken
+    );
+    
+    for (SchemaInfo schema : response.getSchemas()) {
+        System.out.println("Schema: " + schema.getFullName());
+    }
+}
+```
+
+## Working with Tables
+
+### Create a Table
+
+```java
+import io.unitycatalog.client.model.*;
+
+import java.util.Arrays;
+import java.util.List;
+
+public TableInfo createTable(TablesApi tablesApi) throws ApiException {
+    // Define columns
+    List<ColumnInfo> columns = Arrays.asList(
+        new ColumnInfo()
+            .name("user_id")
+            .typeText("int")
+            .typeName(ColumnTypeName.INT)
+            .typeJson("{\"name\":\"user_id\",\"type\":\"integer\"}")
+            .position(0)
+            .nullable(false)
+            .comment("User identifier"),
+        new ColumnInfo()
+            .name("username")
+            .typeText("string")
+            .typeName(ColumnTypeName.STRING)
+            .typeJson("{\"name\":\"username\",\"type\":\"string\"}")
+            .position(1)
+            .nullable(false),
+        new ColumnInfo()
+            .name("email")
+            .typeText("string")
+            .typeName(ColumnTypeName.STRING)
+            .typeJson("{\"name\":\"email\",\"type\":\"string\"}")
+            .position(2)
+            .nullable(true)
+    );
+    
+    CreateTable request = new CreateTable()
+        .name("users")
+        .catalogName("my_catalog")
+        .schemaName("my_schema")
+        .tableType(TableType.EXTERNAL)
+        .dataSourceFormat(DataSourceFormat.DELTA)
+        .columns(columns)
+        .storageLocation("s3://my-bucket/users")
+        .comment("User data table");
+    
+    TableInfo table = tablesApi.createTable(request);
+    System.out.println("Created table: " + table.getName());
+    
+    return table;
+}
+```
+
+### Get Table Details
+
+```java
+public TableInfo getTable(TablesApi tablesApi, String fullName) 
+        throws ApiException {
+    TableInfo table = tablesApi.getTable(fullName);
+    
+    System.out.println("Table: " + table.getName());
+    System.out.println("Type: " + table.getTableType());
+    System.out.println("Format: " + table.getDataSourceFormat());
+    System.out.println("Storage: " + table.getStorageLocation());
+    
+    System.out.println("\nColumns:");
+    for (ColumnInfo column : table.getColumns()) {
+        String nullable = column.getNullable() ? "NULL" : "NOT NULL";
+        System.out.println("  " + column.getName() + ": " + 
+                          column.getTypeText() + " " + nullable);
+    }
+    
+    return table;
+}
+```
+
+### List Tables
+
+```java
+import io.unitycatalog.client.model.ListTablesResponse;
+
+public void listTables(TablesApi tablesApi, String catalogName, 
+                       String schemaName) throws ApiException {
+    ListTablesResponse response = tablesApi.listTables(
+        catalogName,
+        schemaName,
+        50,    // maxResults
+        null   // pageToken
+    );
+    
+    for (TableInfo table : response.getTables()) {
+        System.out.println(table.getName() + " (" + 
+                          table.getTableType() + ")");
+    }
+}
+```
+
+## Error Handling
+
+```java
+import io.unitycatalog.client.ApiException;
+
+public CatalogInfo safeCatalogOperation(CatalogsApi catalogsApi, 
+                                        String name) {
+    try {
+        return catalogsApi.getCatalog(name);
+    } catch (ApiException e) {
+        switch (e.getCode()) {
+            case 404:
+                System.err.println("Catalog not found: " + name);
+                break;
+            case 401:
+                System.err.println("Authentication failed");
+                break;
+            case 403:
+                System.err.println("Permission denied");
+                break;
+            default:
+                System.err.println("API error: " + e.getCode() + 
+                                 " - " + e.getResponseBody());
+        }
+        throw new RuntimeException("Failed to get catalog", e);
+    }
+}
+```
+
+## Pagination
+
+```java
+import java.util.ArrayList;
+
+public List<CatalogInfo> listAllCatalogs(CatalogsApi catalogsApi) 
+        throws ApiException {
+    List<CatalogInfo> allCatalogs = new ArrayList<>();
+    String pageToken = null;
+    
+    do {
+        ListCatalogsResponse response = catalogsApi.listCatalogs(
+            pageToken,
+            10  // maxResults
+        );
+        
+        allCatalogs.addAll(response.getCatalogs());
+        pageToken = response.getNextPageToken();
+        
+    } while (pageToken != null);
+    
+    return allCatalogs;
+}
+```
+
+## Custom Request Interceptors
+
+```java
+import java.net.http.HttpRequest;
+
+// Add custom headers to all requests
+ApiClient client = ApiClientBuilder.create()
+    .uri("http://localhost:8080")
+    .tokenProvider(tokenProvider)
+    .addRequestInterceptor(builder -> 
+        builder.header("X-Custom-Header", "custom-value")
+    )
+    .build();
+```
+
+## Complete Example
+
+```java
+import io.unitycatalog.client.*;
+import io.unitycatalog.client.api.*;
+import io.unitycatalog.client.auth.StaticTokenProvider;
+import io.unitycatalog.client.model.*;
+
+import java.util.Arrays;
+
+public class CompleteCatalogExample {
+    public static void main(String[] args) {
+        try {
+            // Setup client
+            ApiClient client = ApiClientBuilder.create()
+                .uri("http://localhost:8080")
+                .tokenProvider(new StaticTokenProvider("YOUR_TOKEN"))
+                .build();
+            
+            CatalogsApi catalogsApi = new CatalogsApi(client);
+            SchemasApi schemasApi = new SchemasApi(client);
+            TablesApi tablesApi = new TablesApi(client);
+            
+            // Create catalog
+            CatalogInfo catalog = catalogsApi.createCatalog(
+                new CreateCatalog()
+                    .name("analytics")
+                    .comment("Analytics catalog")
+            );
+            System.out.println("Created catalog: " + catalog.getName());
+            
+            // Create schema
+            SchemaInfo schema = schemasApi.createSchema(
+                new CreateSchema()
+                    .name("production")
+                    .catalogName("analytics")
+                    .comment("Production schema")
+            );
+            System.out.println("Created schema: " + schema.getFullName());
+            
+            // Create table
+            TableInfo table = tablesApi.createTable(
+                new CreateTable()
+                    .name("events")
+                    .catalogName("analytics")
+                    .schemaName("production")
+                    .tableType(TableType.EXTERNAL)
+                    .dataSourceFormat(DataSourceFormat.DELTA)
+                    .columns(Arrays.asList(
+                        new ColumnInfo()
+                            .name("event_id")
+                            .typeText("string")
+                            .typeName(ColumnTypeName.STRING)
+                            .typeJson("{\"name\":\"event_id\",\"type\":\"string\"}")
+                            .position(0),
+                        new ColumnInfo()
+                            .name("timestamp")
+                            .typeText("timestamp")
+                            .typeName(ColumnTypeName.TIMESTAMP)
+                            .typeJson("{\"name\":\"timestamp\",\"type\":\"timestamp\"}")
+                            .position(1)
+                    ))
+                    .storageLocation("s3://my-bucket/events")
+            );
+            System.out.println("Created table: " + table.getName());
+            
+            // List all tables
+            ListTablesResponse tablesResponse = tablesApi.listTables(
+                "analytics",
+                "production",
+                50,
+                null
+            );
+            System.out.println("Total tables: " + 
+                             tablesResponse.getTables().size());
+            
+        } catch (ApiException e) {
+            System.err.println("API error: " + e.getCode());
+            System.err.println(e.getResponseBody());
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+## API Reference
+
+For complete API documentation, see:
+
+- [REST API Reference](/api/rest/catalogs)
+- [GitHub Repository](https://github.com/unitycatalog/unitycatalog)
+- [JavaDoc](https://javadoc.io/doc/io.unitycatalog/unitycatalog-client)
+
+## Testing
+
+The Java SDK includes comprehensive tests. To run tests:
+
+```bash
+./gradlew test
+```

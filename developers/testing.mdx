@@ -1,0 +1,233 @@
+---
+title: Testing Unity Catalog
+description: Run tests and generate coverage reports for Unity Catalog
+---
+
+## Running Tests
+
+Unity Catalog uses sbt for running tests. All tests should pass before submitting a pull request.
+
+### Running All Tests
+
+To compile and execute all tests:
+
+```bash
+build/sbt -J-Xmx2G clean test
+```
+
+<Note>
+The `-J-Xmx2G` flag allocates 2GB of heap memory to the JVM. Increase this if you encounter out of memory errors.
+</Note>
+
+### Running Specific Test Suites
+
+To run a specific test class:
+
+```bash
+build/sbt "testOnly io.unitycatalog.server.UnityCatalogServerTest"
+```
+
+To run tests matching a pattern:
+
+```bash
+build/sbt "testOnly *CatalogTest"
+```
+
+## Test Coverage
+
+Unity Catalog uses [JaCoCo](https://www.jacoco.org/jacoco/) for code coverage analysis.
+
+### Generating Coverage Reports
+
+To execute tests with coverage:
+
+```bash
+build/sbt -J-Xmx2G jacoco
+```
+
+This command:
+- Runs all tests
+- Generates coverage data
+- Creates coverage reports in multiple formats
+
+### Viewing Coverage Reports
+
+After running `jacoco`, coverage reports are generated in:
+
+```
+target/scala-2.13/jacoco/report/html/index.html
+```
+
+Open this file in a browser to view detailed coverage information:
+
+```bash
+open target/scala-2.13/jacoco/report/html/index.html
+```
+
+## Test Organization
+
+Unity Catalog tests are organized into several categories:
+
+### Unit Tests
+
+Unit tests focus on individual components in isolation:
+
+- **Server tests**: Test UC server APIs and business logic
+- **Client tests**: Test SDK client functionality
+- **Model tests**: Test data models and serialization
+- **Utility tests**: Test helper functions and utilities
+
+### Integration Tests
+
+Integration tests verify interactions between components:
+
+- **API integration tests**: Test full API request/response cycles
+- **Database integration tests**: Test persistence layer
+- **Connector integration tests**: Test Spark, Delta, and other connectors
+
+### End-to-End Tests
+
+E2E tests validate complete user workflows:
+
+- **CLI tests**: Test command-line interface operations
+- **Server lifecycle tests**: Test server startup, shutdown, and health checks
+- **Multi-component tests**: Test interactions between server, clients, and connectors
+
+## Testing Best Practices
+
+<Steps>
+  <Step title="Write Tests for New Code">
+    All new features and bug fixes should include corresponding tests. Aim for:
+    - Unit tests for business logic
+    - Integration tests for API endpoints
+    - E2E tests for user-facing features
+  </Step>
+
+  <Step title="Maintain Test Coverage">
+    Ensure test coverage doesn't decrease with your changes. Run `jacoco` locally before submitting PRs.
+  </Step>
+
+  <Step title="Keep Tests Fast">
+    Write focused, fast-running tests. Use mocks and stubs where appropriate to avoid slow I/O operations.
+  </Step>
+
+  <Step title="Make Tests Deterministic">
+    Tests should produce consistent results. Avoid timing dependencies and external service calls.
+  </Step>
+</Steps>
+
+## CI/CD Pipeline
+
+Unity Catalog uses GitHub Actions for continuous integration.
+
+### Automated Testing
+
+When you submit a pull request, the CI pipeline automatically:
+
+1. **Builds** the project on multiple platforms
+2. **Runs** all test suites
+3. **Checks** code formatting with `javafmtCheckAll`
+4. **Generates** test coverage reports
+5. **Validates** API specifications
+
+### CI Configuration
+
+The CI pipeline is defined in `.github/workflows/` and includes:
+
+- **Build and Test**: Runs on every PR and commit
+- **Code Quality**: Checks formatting and style
+- **Integration Tests**: Tests against real databases and services
+- **Cross-platform**: Validates on Linux, macOS, and Windows
+
+<Note>
+All CI checks must pass before a PR can be merged.
+</Note>
+
+## Test Commands Reference
+
+<CodeGroup>
+
+```bash Run All Tests
+build/sbt -J-Xmx2G clean test
+```
+
+```bash Test with Coverage
+build/sbt -J-Xmx2G jacoco
+```
+
+```bash Run Specific Test
+build/sbt "testOnly io.unitycatalog.server.UnityCatalogServerTest"
+```
+
+```bash Run Tests by Pattern
+build/sbt "testOnly *CatalogTest"
+```
+
+```bash Check Code Format
+build/sbt javafmtCheckAll
+```
+
+</CodeGroup>
+
+## Troubleshooting Tests
+
+### Out of Memory Errors
+
+If tests fail with OutOfMemoryError, increase the heap size:
+
+```bash
+build/sbt -J-Xmx4G clean test
+```
+
+### Flaky Tests
+
+If you encounter flaky tests:
+
+1. Run the test multiple times to verify inconsistency
+2. Check for timing dependencies or race conditions
+3. Review test isolation - ensure tests don't share state
+4. Report the issue on [GitHub](https://github.com/unitycatalog/unitycatalog/issues)
+
+### Database Connection Issues
+
+For integration tests that require database connections:
+
+1. Ensure required services are running (e.g., PostgreSQL)
+2. Check connection configurations in test resources
+3. Verify network connectivity and firewall rules
+
+## Writing New Tests
+
+When adding new tests:
+
+```java
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+
+public class MyCatalogTest {
+    
+    @Test
+    public void testCreateCatalog() {
+        // Arrange
+        String catalogName = "test_catalog";
+        
+        // Act
+        Catalog catalog = catalogService.createCatalog(catalogName);
+        
+        // Assert
+        assertNotNull(catalog);
+        assertEquals(catalogName, catalog.getName());
+    }
+}
+```
+
+<Note>
+Follow the Arrange-Act-Assert pattern for clear, maintainable tests.
+</Note>
+
+## Next Steps
+
+- [Code Style Guidelines](/developers/code-style)
+- [Contributing Guidelines](/developers/contributing)
+- [Building Unity Catalog](/developers/building)
+- [CI/CD Pipeline Documentation](https://github.com/unitycatalog/unitycatalog/tree/main/.github/workflows)

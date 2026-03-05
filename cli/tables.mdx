@@ -1,0 +1,410 @@
+---
+title: 'Table Management'
+description: 'Manage Unity Catalog tables using the CLI'
+---
+
+## Overview
+
+Tables are structured data assets stored within schemas. Unity Catalog supports various table formats including Delta Lake, Parquet, ORC, JSON, CSV, Avro, and text files. Use the `bin/uc table` commands to manage tables.
+
+<Note>
+Tables use a **full name** format: `catalog_name.schema_name.table_name`
+</Note>
+
+## List Tables
+
+List all tables within a schema:
+
+```bash
+bin/uc table list \
+  --catalog <catalog> \
+  --schema <schema> \
+  [--max_results <max_results>]
+```
+
+<ParamField path="--catalog" type="string" required>
+  The name of the catalog.
+</ParamField>
+
+<ParamField path="--schema" type="string" required>
+  The name of the schema.
+</ParamField>
+
+<ParamField path="--max_results" type="integer">
+  Optional. Maximum number of results to return.
+</ParamField>
+
+### Example
+
+```bash
+bin/uc table list --catalog unity --schema default
+```
+
+## Get Table Details
+
+Retrieve detailed information about a specific table:
+
+```bash
+bin/uc table get --full_name <full_name>
+```
+
+<ParamField path="--full_name" type="string" required>
+  The full name of the table in the format `catalog_name.schema_name.table_name`.
+</ParamField>
+
+### Example
+
+```bash
+bin/uc table get --full_name unity.default.numbers
+```
+
+## Create a Table
+
+Create a new table in a schema:
+
+```bash
+bin/uc table create \
+  --full_name <full_name> \
+  --columns <columns> \
+  --storage_location <storage_location> \
+  [--format <format>] \
+  [--properties <properties>]
+```
+
+<ParamField path="--full_name" type="string" required>
+  The full name of the table in the format `catalog_name.schema_name.table_name`.
+</ParamField>
+
+<ParamField path="--columns" type="string" required>
+  The columns of the table in SQL-like format: `"column_name column_data_type"`. Separate multiple columns with commas (e.g., `"id INT, name STRING"`).
+  
+  Supported data types:
+  - `BOOLEAN`
+  - `BYTE`
+  - `SHORT`
+  - `INT`
+  - `LONG`
+  - `FLOAT`
+  - `DOUBLE`
+  - `DATE`
+  - `TIMESTAMP`
+  - `TIMESTAMP_NTZ`
+  - `STRING`
+  - `BINARY`
+  - `DECIMAL`
+</ParamField>
+
+<ParamField path="--storage_location" type="string" required>
+  The storage location for the table data. Can be:
+  - Local absolute path (e.g., `/path/to/storage`)
+  - S3 path (e.g., `s3://bucket/path`)
+  
+  Required for EXTERNAL tables.
+</ParamField>
+
+<ParamField path="--format" type="string">
+  Optional. The format of the data source. Default is `DELTA`.
+  
+  Supported values:
+  - `DELTA` (default)
+  - `PARQUET`
+  - `ORC`
+  - `JSON`
+  - `CSV`
+  - `AVRO`
+  - `TEXT`
+</ParamField>
+
+<ParamField path="--properties" type="json">
+  Optional. Properties of the table in JSON format (e.g., `'{"key1": "value1", "key2": "value2"}'`).
+</ParamField>
+
+### Examples
+
+<CodeGroup>
+```bash Basic Delta table
+bin/uc table create \
+  --full_name my_catalog.my_schema.my_table \
+  --columns "id INT, name STRING" \
+  --storage_location "/path/to/storage"
+```
+
+```bash Parquet table
+bin/uc table create \
+  --full_name my_catalog.my_schema.parquet_table \
+  --columns "id INT, created_at TIMESTAMP, value DOUBLE" \
+  --storage_location "/data/parquet" \
+  --format PARQUET
+```
+
+```bash Table with properties
+bin/uc table create \
+  --full_name analytics.sales.transactions \
+  --columns "transaction_id LONG, customer_id LONG, amount DECIMAL, date DATE" \
+  --storage_location "s3://my-bucket/sales/transactions" \
+  --format DELTA \
+  --properties '{"owner": "sales-team", "retention_days": "2555"}'
+```
+
+```bash Complex schema
+bin/uc table create \
+  --full_name production.events.user_events \
+  --columns "event_id LONG, user_id LONG, event_type STRING, timestamp TIMESTAMP_NTZ, properties STRING, is_active BOOLEAN" \
+  --storage_location "/data/events"
+```
+</CodeGroup>
+
+<Info>
+When using S3 storage locations, ensure your server configuration includes the necessary AWS credentials and permissions.
+</Info>
+
+## Read Table Data
+
+Read data from a Delta table:
+
+```bash
+bin/uc table read \
+  --full_name <full_name> \
+  [--max_results <max_results>]
+```
+
+<ParamField path="--full_name" type="string" required>
+  The full name of the table in the format `catalog_name.schema_name.table_name`.
+</ParamField>
+
+<ParamField path="--max_results" type="integer">
+  Optional. Maximum number of rows to return.
+</ParamField>
+
+### Example
+
+```bash
+# Read all rows
+bin/uc table read --full_name unity.default.numbers
+
+# Read with limit
+bin/uc table read --full_name unity.default.numbers --max_results 10
+```
+
+## Write Sample Data
+
+Write sample data to a Delta table (experimental feature):
+
+```bash
+bin/uc table write --full_name <full_name>
+```
+
+<ParamField path="--full_name" type="string" required>
+  The full name of the table in the format `catalog_name.schema_name.table_name`.
+</ParamField>
+
+### Example
+
+```bash
+bin/uc table write --full_name my_catalog.my_schema.my_table
+```
+
+<Warning>
+This is an experimental feature and only supports primitive data types. Use for testing purposes only.
+</Warning>
+
+## Delete a Table
+
+Delete an existing table:
+
+```bash
+bin/uc table delete --full_name <full_name>
+```
+
+<ParamField path="--full_name" type="string" required>
+  The full name of the table to delete in the format `catalog_name.schema_name.table_name`.
+</ParamField>
+
+### Example
+
+```bash
+bin/uc table delete --full_name my_catalog.my_schema.my_table
+```
+
+<Warning>
+Deleting a table removes its metadata from Unity Catalog. The underlying data files may still exist in storage depending on your configuration.
+</Warning>
+
+## Complete Workflow Example
+
+Here's a complete example of the table lifecycle:
+
+<Steps>
+  <Step title="Create a catalog and schema">
+    ```bash
+    bin/uc catalog create --name analytics --comment "Analytics data"
+    bin/uc schema create --catalog analytics --name sales
+    ```
+  </Step>
+  
+  <Step title="Create a table">
+    ```bash
+    bin/uc table create \
+      --full_name analytics.sales.transactions \
+      --columns "id LONG, customer_id LONG, amount DOUBLE, created_at TIMESTAMP" \
+      --storage_location "/data/sales/transactions" \
+      --format DELTA
+    ```
+  </Step>
+  
+  <Step title="Write sample data (for testing)">
+    ```bash
+    bin/uc table write --full_name analytics.sales.transactions
+    ```
+  </Step>
+  
+  <Step title="Read the data">
+    ```bash
+    bin/uc table read --full_name analytics.sales.transactions --max_results 5
+    ```
+  </Step>
+  
+  <Step title="Get table metadata">
+    ```bash
+    bin/uc table get --full_name analytics.sales.transactions
+    ```
+  </Step>
+  
+  <Step title="List all tables in schema">
+    ```bash
+    bin/uc table list --catalog analytics --schema sales
+    ```
+  </Step>
+  
+  <Step title="Clean up">
+    ```bash
+    bin/uc table delete --full_name analytics.sales.transactions
+    ```
+  </Step>
+</Steps>
+
+## Table Formats
+
+<AccordionGroup>
+  <Accordion title="Delta Lake (Recommended)">
+    Delta Lake is the default and recommended format for Unity Catalog tables.
+    
+    **Benefits:**
+    - ACID transactions
+    - Time travel and versioning
+    - Schema evolution
+    - Efficient updates and deletes
+    - Optimized performance
+    
+    ```bash
+    bin/uc table create \
+      --full_name catalog.schema.delta_table \
+      --columns "id INT, value STRING" \
+      --storage_location "/data/delta" \
+      --format DELTA
+    ```
+  </Accordion>
+  
+  <Accordion title="Parquet">
+    Efficient columnar format for analytics workloads.
+    
+    ```bash
+    bin/uc table create \
+      --full_name catalog.schema.parquet_table \
+      --columns "id INT, value STRING" \
+      --storage_location "/data/parquet" \
+      --format PARQUET
+    ```
+  </Accordion>
+  
+  <Accordion title="JSON">
+    Flexible format for semi-structured data.
+    
+    ```bash
+    bin/uc table create \
+      --full_name catalog.schema.json_table \
+      --columns "data STRING" \
+      --storage_location "/data/json" \
+      --format JSON
+    ```
+  </Accordion>
+  
+  <Accordion title="CSV">
+    Simple text format with delimited values.
+    
+    ```bash
+    bin/uc table create \
+      --full_name catalog.schema.csv_table \
+      --columns "col1 STRING, col2 INT" \
+      --storage_location "/data/csv" \
+      --format CSV
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Choosing a Format">
+    - Use **Delta Lake** for production tables requiring ACID guarantees
+    - Use **Parquet** for read-heavy analytical workloads
+    - Use **JSON** for semi-structured or nested data
+    - Use **CSV** only for simple exports or legacy compatibility
+  </Accordion>
+  
+  <Accordion title="Storage Locations">
+    - Use absolute paths for local storage
+    - Organize data hierarchically (e.g., `/data/catalog/schema/table`)
+    - For S3, ensure bucket policies and IAM roles are configured
+    - Keep storage locations consistent across environments
+  </Accordion>
+  
+  <Accordion title="Schema Design">
+    - Choose appropriate data types for your columns
+    - Use `TIMESTAMP_NTZ` for timezone-agnostic timestamps
+    - Use `DECIMAL` for precise financial calculations
+    - Document column meanings in table properties
+  </Accordion>
+  
+  <Accordion title="Table Properties">
+    - Track ownership and contact information
+    - Document data retention policies
+    - Mark tables containing PII or sensitive data
+    - Include data quality rules and expectations
+  </Accordion>
+</AccordionGroup>
+
+## Column Data Types Reference
+
+| Type | Description | Example |
+|------|-------------|----------|
+| `BOOLEAN` | True/false values | `true`, `false` |
+| `BYTE` | 8-bit signed integer | `-128` to `127` |
+| `SHORT` | 16-bit signed integer | `-32768` to `32767` |
+| `INT` | 32-bit signed integer | `-2147483648` to `2147483647` |
+| `LONG` | 64-bit signed integer | Large numbers |
+| `FLOAT` | 32-bit floating point | `3.14` |
+| `DOUBLE` | 64-bit floating point | `3.14159265359` |
+| `DECIMAL` | Exact numeric | Financial values |
+| `STRING` | Text data | `"hello"` |
+| `BINARY` | Binary data | Byte arrays |
+| `DATE` | Date only | `2024-01-15` |
+| `TIMESTAMP` | Date and time with timezone | `2024-01-15 10:30:00` |
+| `TIMESTAMP_NTZ` | Date and time without timezone | `2024-01-15 10:30:00` |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Volume Management" icon="box" href="/cli/volumes">
+    Manage unstructured data with volumes
+  </Card>
+  <Card title="Function Management" icon="function" href="/cli/functions">
+    Create and invoke functions
+  </Card>
+  <Card title="Delta Lake Guide" icon="triangle" href="/usage/tables">
+    Learn more about working with Delta tables
+  </Card>
+  <Card title="Schema Management" icon="folder-tree" href="/cli/schemas">
+    Back to schema management
+  </Card>
+</CardGroup>

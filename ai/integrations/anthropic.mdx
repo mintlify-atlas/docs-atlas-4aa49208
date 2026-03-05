@@ -1,0 +1,434 @@
+---
+title: Anthropic Integration
+description: Use Unity Catalog functions with Claude via Anthropic's tool use API
+---
+
+Use Unity Catalog functions as tools with Anthropic's Claude models through the tool use API.
+
+## Installation
+
+Install the Unity Catalog Anthropic integration from PyPI:
+
+```bash
+pip install unitycatalog-anthropic
+```
+
+For **Databricks Unity Catalog**, install with the optional databricks package:
+
+```bash
+pip install unitycatalog-anthropic[databricks]
+```
+
+## Setup
+
+<Steps>
+  <Step title="Create a Unity Catalog Client">
+    Initialize the `UnitycatalogFunctionClient`:
+
+    ```python
+    from unitycatalog.ai.core.client import UnitycatalogFunctionClient
+    from unitycatalog.client import ApiClient, Configuration
+
+    config = Configuration(
+        host="http://localhost:8080/api/2.1/unity-catalog"
+    )
+
+    api_client = ApiClient(configuration=config)
+    uc_client = UnitycatalogFunctionClient(api_client=api_client)
+
+    CATALOG = "my_catalog"
+    SCHEMA = "my_schema"
+    ```
+  </Step>
+
+  <Step title="Create a Unity Catalog Function">
+    Define your function with type hints and docstring:
+
+    ```python
+    def add_numbers(a: float, b: float) -> float:
+        """
+        Adds two numbers and returns the result.
+
+        Args:
+            a (float): First number.
+            b (float): Second number.
+
+        Returns:
+            float: The sum of the two numbers.
+        """
+        return a + b
+
+    function_info = uc_client.create_python_function(
+        func=add_numbers,
+        catalog=CATALOG,
+        schema=SCHEMA,
+        replace=False
+    )
+    ```
+  </Step>
+
+  <Step title="Create UCFunctionToolkit">
+    Convert UC functions to Anthropic tool definitions:
+
+    ```python
+    from unitycatalog.ai.anthropic.toolkit import UCFunctionToolkit
+
+    toolkit = UCFunctionToolkit(
+        function_names=[f"{CATALOG}.{SCHEMA}.add_numbers"],
+        client=uc_client
+    )
+
+    # Get Anthropic-compatible tool definitions
+    tools = toolkit.tools
+    ```
+  </Step>
+</Steps>
+
+## Using with Anthropic
+
+Call Claude with UC function tools:
+
+```python
+import anthropic
+
+anthropic_client = anthropic.Anthropic()
+
+question = [{"role": "user", "content": "What's 15 + 27?"}]
+
+response = anthropic_client.messages.create(
+    model="claude-3-5-sonnet-20240620",
+    max_tokens=1024,
+    tools=tools,
+    messages=question
+)
+
+print(response)
+```
+
+## Handling Tool Calls
+
+Claude responds with `ToolUseBlock` objects when tools should be called.
+
+### Recommended: Using Helper Utility
+
+Simplify tool execution with the provided helper:
+
+```python
+from unitycatalog.ai.anthropic.utils import generate_tool_call_messages
+
+# Execute tool calls and generate response messages
+tool_messages = generate_tool_call_messages(
+    response=response,
+    client=uc_client,
+    conversation_history=question
+)
+
+# Call Claude with tool results
+tool_response = anthropic_client.messages.create(
+    model="claude-3-5-sonnet-20240620",
+    max_tokens=1024,
+    tools=tools,
+    messages=tool_messages
+)
+
+print(tool_response)
+```
+
+<Note>
+Claude may perform multi-turn tool calling for dependent operations. Use the helper in a loop with a break condition when `stop_reason` is `end_turn`.
+</Note>
+
+### Manual Tool Execution
+
+For advanced use cases, manually handle tool calls:
+
+```python
+from unitycatalog.ai.anthropic.utils import extract_tool_call_data
+
+# Extract tool call data
+parsed_messages = extract_tool_call_data(response)
+
+# Execute each tool call
+results = []
+for message in parsed_messages:
+    result = message.execute(uc_client)
+    results.append(message.to_tool_result_message(result))
+
+print(results)
+```
+
+## Multi-Location Weather Example
+
+Claude can handle multiple tool calls in parallel:
+
+```python
+import anthropic
+from unitycatalog.ai.anthropic.toolkit import UCFunctionToolkit
+from unitycatalog.ai.anthropic.utils import generate_tool_call_messages
+
+# Define weather function
+def get_weather(location: str) -> str:
+    """
+    Returns the current weather from a given location.
+    
+    Args:
+        location: The location to get weather for
+    
+    Returns:
+        Temperature in Celsius
+    """
+    return "31.9 C"
+
+# Create in UC
+uc_client.create_python_function(
+    func=get_weather,
+    catalog="main",
+    schema="default",
+    replace=True
+)
+
+# Create toolkit
+toolkit = UCFunctionToolkit(
+    function_names=["main.default.get_weather"],
+    client=uc_client
+)
+
+# Ask about multiple locations
+anthropic_client = anthropic.Anthropic()
+question = [{
+    "role": "user",
+    "content": "What's the weather in Nome, AK and Death Valley, CA?"
+}]
+
+response = anthropic_client.messages.create(
+    model="claude-3-5-sonnet-20240620",
+    max_tokens=1024,
+    tools=toolkit.tools,
+    messages=question
+)
+
+# Process tool calls (Claude will call the function twice)
+tool_messages = generate_tool_call_messages(
+    response=response,
+    client=uc_client,
+    conversation_history=question
+)
+
+# Get final response
+final_response = anthropic_client.messages.create(
+    model="claude-3-5-sonnet-20240620",
+    max_tokens=1024,
+    tools=toolkit.tools,
+    messages=tool_messages
+)
+
+print(final_response.content[0].text)
+```
+
+## Databricks Unity Catalog
+
+<Note>
+For Databricks-managed Unity Catalog, follow the [authentication instructions](https://docs.databricks.com/en/dev-tools/cli/authentication.html).
+</Note>
+
+### Client Setup
+
+```python
+from unitycatalog.ai.core.base import set_uc_function_client
+from unitycatalog.ai.core.databricks import DatabricksFunctionClient
+
+client = DatabricksFunctionClient()
+set_uc_function_client(client)
+```
+
+### Create SQL Function
+
+```python
+CATALOG = "catalog"
+SCHEMA = "schema"
+
+func_name = f"{CATALOG}.{SCHEMA}.get_weather"
+sql_body = f"""CREATE OR REPLACE FUNCTION {func_name}(
+    location STRING COMMENT 'Retrieves the current weather from a provided location.'
+)
+RETURNS STRING
+LANGUAGE PYTHON
+COMMENT 'Returns the current weather from a given location in degrees Celsius.'
+AS $$
+    return "31.9 C"
+$$
+"""
+
+client.create_function(sql_function_body=sql_body)
+```
+
+## UCFunctionToolkit API
+
+The `UCFunctionToolkit` converts UC functions to Anthropic tool definitions.
+
+### Parameters
+
+- `function_names` (List[str]): Function names in `catalog.schema.function` format
+- `client` (Optional[BaseFunctionClient]): Client for managing functions
+- `filter_accessible_functions` (bool): Filter functions by permissions (default: False)
+
+### Properties
+
+- `tools`: Returns list of `AnthropicTool` objects
+- `tools_dict`: Dictionary mapping function names to tools
+
+### AnthropicTool Structure
+
+Each tool has:
+- `name`: Function name (short form)
+- `description`: Function comment/description
+- `input_schema`: JSON schema for function parameters
+
+## Complete Example
+
+<CodeGroup>
+```python Full Workflow
+import anthropic
+from unitycatalog.ai.core.client import UnitycatalogFunctionClient
+from unitycatalog.ai.anthropic.toolkit import UCFunctionToolkit
+from unitycatalog.ai.anthropic.utils import generate_tool_call_messages
+from unitycatalog.client import ApiClient, Configuration
+
+# 1. Setup
+config = Configuration(host="http://localhost:8080/api/2.1/unity-catalog")
+api_client = ApiClient(configuration=config)
+uc_client = UnitycatalogFunctionClient(api_client=api_client)
+
+# 2. Create function
+def calculate_tip(bill_amount: float, tip_percentage: float) -> float:
+    """Calculate tip amount.
+    
+    Args:
+        bill_amount: Total bill amount
+        tip_percentage: Tip percentage (e.g., 15 for 15%)
+    
+    Returns:
+        Tip amount
+    """
+    return bill_amount * (tip_percentage / 100)
+
+uc_client.create_python_function(
+    func=calculate_tip,
+    catalog="main",
+    schema="default",
+    replace=True
+)
+
+# 3. Create toolkit
+toolkit = UCFunctionToolkit(
+    function_names=["main.default.calculate_tip"],
+    client=uc_client
+)
+
+# 4. Call Claude
+anthropic_client = anthropic.Anthropic()
+question = [{
+    "role": "user",
+    "content": "If my bill is $85.50 and I want to tip 18%, how much should I tip?"
+}]
+
+response = anthropic_client.messages.create(
+    model="claude-3-5-sonnet-20240620",
+    max_tokens=1024,
+    tools=toolkit.tools,
+    messages=question
+)
+
+# 5. Execute tool calls
+tool_messages = generate_tool_call_messages(
+    response=response,
+    client=uc_client,
+    conversation_history=question
+)
+
+# 6. Get final answer
+final_response = anthropic_client.messages.create(
+    model="claude-3-5-sonnet-20240620",
+    max_tokens=1024,
+    tools=toolkit.tools,
+    messages=tool_messages
+)
+
+print(final_response.content[0].text)
+```
+
+```python Multi-Turn Tool Calling
+import anthropic
+from unitycatalog.ai.anthropic.toolkit import UCFunctionToolkit
+from unitycatalog.ai.anthropic.utils import generate_tool_call_messages
+
+# Setup multiple dependent tools
+def get_capital(country: str) -> str:
+    """Get the capital city of a country."""
+    capitals = {"France": "Paris", "Japan": "Tokyo", "Brazil": "Brasília"}
+    return capitals.get(country, "Unknown")
+
+def get_weather(city: str) -> str:
+    """Get weather for a city."""
+    return f"Weather in {city}: 22°C, Sunny"
+
+# Create functions
+for func in [get_capital, get_weather]:
+    uc_client.create_python_function(
+        func=func,
+        catalog="main",
+        schema="tools",
+        replace=True
+    )
+
+# Create toolkit
+toolkit = UCFunctionToolkit(
+    function_names=[
+        "main.tools.get_capital",
+        "main.tools.get_weather"
+    ],
+    client=uc_client
+)
+
+# Claude will first call get_capital, then get_weather with the result
+anthropic_client = anthropic.Anthropic()
+conversation = [{
+    "role": "user",
+    "content": "What's the weather like in the capital of Japan?"
+}]
+
+# Handle multi-turn tool calling
+max_turns = 5
+for turn in range(max_turns):
+    response = anthropic_client.messages.create(
+        model="claude-3-5-sonnet-20240620",
+        max_tokens=1024,
+        tools=toolkit.tools,
+        messages=conversation
+    )
+    
+    if response.stop_reason == "end_turn":
+        print(response.content[0].text)
+        break
+    
+    # Execute tool calls and update conversation
+    conversation = generate_tool_call_messages(
+        response=response,
+        client=uc_client,
+        conversation_history=conversation
+    )
+```
+</CodeGroup>
+
+## Configuration
+
+### Function Execution Arguments
+
+For Databricks-managed UC, see the [function execution arguments configuration](/ai/function-execution).
+
+## Related Resources
+
+- [Anthropic Tool Use Documentation](https://docs.anthropic.com/en/docs/build-with-claude/tool-use)
+- [Claude Documentation](https://docs.anthropic.com/en/docs/welcome)
+- [Unity Catalog Functions](/ai/functions)
+- [Function Execution Configuration](/ai/function-execution)

@@ -1,0 +1,473 @@
+---
+title: Functions
+description: Learn about Unity Catalog functions and user-defined functions (UDFs)
+---
+
+## Overview
+
+**Functions** in Unity Catalog implement User-Defined Functions (UDFs) that can be invoked in queries wherever a table reference is allowed. Functions provide a way to encapsulate reusable logic, from simple calculations to complex data transformations.
+
+Functions reside at the same level as tables in Unity Catalog's three-level namespace, referenced as `catalog_name.schema_name.function_name`.
+
+## Function Types
+
+Unity Catalog supports multiple function implementations:
+
+### SQL Functions
+
+**SQL functions** are defined using SQL expressions:
+
+- Function body is a SQL query or expression
+- Can reference tables and views in the catalog
+- Executed by the query engine
+- Portable across different SQL engines
+
+### Python Functions
+
+**Python functions** are defined using Python code:
+
+- Function body is Python code with business logic
+- Can use Python standard library
+- Return scalar values or table results
+- Executed by the Python runtime
+
+### External Functions
+
+**External functions** are implemented outside Unity Catalog:
+
+- Reference external services or APIs
+- Require external language specification
+- Must set `routine_body` to `EXTERNAL`
+- Must set `sql_data_access` to `NO_SQL`
+
+## Function Properties
+
+Each function has comprehensive metadata:
+
+<ParamField path="name" type="string" required>
+  Name of the function, relative to parent schema.
+</ParamField>
+
+<ParamField path="catalog_name" type="string" required>
+  Name of the parent catalog.
+</ParamField>
+
+<ParamField path="schema_name" type="string" required>
+  Name of the parent schema.
+</ParamField>
+
+<ParamField path="full_name" type="string">
+  Full name: `catalog_name.schema_name.function_name`
+</ParamField>
+
+<ParamField path="input_params" type="array" required>
+  Array of input parameter definitions (name, type, position).
+</ParamField>
+
+<ParamField path="data_type" type="enum" required>
+  Return data type (e.g., `INT`, `STRING`, `DOUBLE`, `TABLE_TYPE`).
+</ParamField>
+
+<ParamField path="full_data_type" type="string" required>
+  Pretty printed function return data type.
+</ParamField>
+
+<ParamField path="routine_body" type="enum" required>
+  Function language: `SQL` or `EXTERNAL`.
+</ParamField>
+
+<ParamField path="routine_definition" type="string" required>
+  Function body (SQL expression or Python code).
+</ParamField>
+
+<ParamField path="external_language" type="string">
+  For external functions, the language (e.g., `PYTHON`).
+</ParamField>
+
+<ParamField path="is_deterministic" type="boolean" required>
+  Whether the function always returns the same output for the same input.
+</ParamField>
+
+<ParamField path="sql_data_access" type="enum" required>
+  Data access level: `CONTAINS_SQL`, `READS_SQL_DATA`, or `NO_SQL`.
+</ParamField>
+
+<ParamField path="comment" type="string">
+  User-provided description of the function.
+</ParamField>
+
+<ParamField path="properties" type="string">
+  JSON-serialized key-value properties.
+</ParamField>
+
+<ParamField path="function_id" type="string">
+  Unique identifier for the function.
+</ParamField>
+
+## Parameter Types
+
+Function parameters support all Unity Catalog data types:
+
+### Primitive Types
+- `INT`, `LONG`, `DOUBLE`, `FLOAT`
+- `STRING`, `BOOLEAN`
+- `DATE`, `TIMESTAMP`, `TIMESTAMP_NTZ`
+- `DECIMAL` (with precision and scale)
+
+### Complex Types
+- `ARRAY`
+- `STRUCT`  
+- `MAP`
+
+### Parameter Metadata
+
+Each parameter includes:
+
+```json
+{
+  "name": "param1",
+  "type_name": "INT",
+  "type_text": "INTEGER",
+  "type_json": "{\"type\":\"integer\"}",
+  "position": 0,
+  "parameter_mode": "IN",
+  "parameter_type": "PARAM",
+  "comment": "First input parameter"
+}
+```
+
+## Managing Functions
+
+### List Functions
+
+List all functions in a schema:
+
+```bash
+bin/uc function list \
+  --catalog unity \
+  --schema default
+```
+
+With pagination:
+
+```bash
+bin/uc function list \
+  --catalog my_catalog \
+  --schema my_schema \
+  --max_results 50
+```
+
+### Get Function Details
+
+Retrieve function metadata:
+
+```bash
+bin/uc function get --full_name my_catalog.my_schema.my_function
+```
+
+This returns:
+- Function signature (name, parameters, return type)
+- Implementation (SQL or Python code)
+- Metadata (owner, timestamps, properties)
+- Configuration (deterministic, data access level)
+
+### Create a Python Function
+
+Create a simple Python function:
+
+```bash
+bin/uc function create \
+  --full_name my_catalog.my_schema.sum_function \
+  --input_params "param1 INT, param2 INT" \
+  --data_type INT \
+  --def "return param1 + param2" \
+  --comment "Adds two integers"
+```
+
+Create with multiple parameters:
+
+```bash
+bin/uc function create \
+  --full_name my_catalog.my_schema.calculate_discount \
+  --input_params "price DOUBLE, discount_pct DOUBLE" \
+  --data_type DOUBLE \
+  --def "return price * (1 - discount_pct / 100)" \
+  --comment "Calculates discounted price"
+```
+
+Create with complex logic:
+
+```bash
+bin/uc function create \
+  --full_name my_catalog.my_schema.categorize_age \
+  --input_params "age INT" \
+  --data_type STRING \
+  --def "if age < 18: return 'minor'\nelif age < 65: return 'adult'\nelse: return 'senior'" \
+  --comment "Categorizes age into groups"
+```
+
+### Create a SQL Function
+
+Create a SQL function (requires language parameter):
+
+```bash
+bin/uc function create \
+  --full_name my_catalog.my_schema.calc_total \
+  --input_params "quantity INT, unit_price DOUBLE" \
+  --data_type DOUBLE \
+  --def "SELECT quantity * unit_price" \
+  --language SQL \
+  --comment "Calculates line item total"
+```
+
+<Note>
+SQL functions must have `--language SQL` specified. Default is Python if not specified.
+</Note>
+
+### Invoke a Function
+
+Call a function with parameters (experimental):
+
+```bash
+bin/uc function call \
+  --full_name my_catalog.my_schema.sum_function \
+  --input_params "5,10"
+```
+
+This returns:
+```console
+Result: 15
+```
+
+Call function with different values:
+
+```bash
+bin/uc function call \
+  --full_name my_catalog.my_schema.calculate_discount \
+  --input_params "100.0,15.0"
+```
+
+<Info>
+Function invocation is experimental and currently only supports Python functions with primitive types. The Python engine at `etc/data/function/python_engine.py` executes the function.
+</Info>
+
+### Delete a Function
+
+Delete a function:
+
+```bash
+bin/uc function delete --full_name my_catalog.my_schema.my_function
+```
+
+## Function Characteristics
+
+### Deterministic vs Non-Deterministic
+
+**Deterministic functions** always return the same output for the same input:
+
+```python
+# Deterministic
+def add(a, b):
+    return a + b
+```
+
+**Non-deterministic functions** may return different outputs:
+
+```python
+# Non-deterministic (depends on current time)
+from datetime import datetime
+def current_hour():
+    return datetime.now().hour
+```
+
+Set `is_deterministic` to `true` for deterministic functions to enable query optimizations.
+
+### SQL Data Access
+
+Specify how the function accesses data:
+
+- `CONTAINS_SQL`: Function contains SQL but doesn't read data
+- `READS_SQL_DATA`: Function reads from database tables
+- `NO_SQL`: Function doesn't use SQL (for external functions)
+
+## Use Cases
+
+### Data Transformations
+
+Create reusable transformation functions:
+
+```bash
+# Standardize phone numbers
+bin/uc function create \
+  --full_name utils.transforms.clean_phone \
+  --input_params "phone STRING" \
+  --data_type STRING \
+  --def "import re; return re.sub(r'[^0-9]', '', phone)" \
+  --comment "Removes non-numeric characters from phone numbers"
+
+# Parse JSON fields
+bin/uc function create \
+  --full_name utils.transforms.extract_json_field \
+  --input_params "json_str STRING, field_name STRING" \
+  --data_type STRING \
+  --def "import json; return json.loads(json_str).get(field_name)" \
+  --comment "Extracts field from JSON string"
+```
+
+### Business Logic
+
+Encapsulate business rules:
+
+```bash
+# Calculate tax
+bin/uc function create \
+  --full_name finance.rules.calculate_sales_tax \
+  --input_params "amount DOUBLE, state_code STRING" \
+  --data_type DOUBLE \
+  --def "tax_rates = {'CA': 0.0725, 'NY': 0.04, 'TX': 0.0625}; return amount * tax_rates.get(state_code, 0)" \
+  --comment "Calculates sales tax by state"
+
+# Credit scoring
+bin/uc function create \
+  --full_name finance.rules.credit_score_band \
+  --input_params "score INT" \
+  --data_type STRING \
+  --def "if score >= 800: return 'Excellent'\nelif score >= 740: return 'Very Good'\nelif score >= 670: return 'Good'\nelif score >= 580: return 'Fair'\nelse: return 'Poor'" \
+  --comment "Categorizes credit scores"
+```
+
+### Analytics Functions
+
+Create analytical calculations:
+
+```bash
+# Convert currencies
+bin/uc function create \
+  --full_name analytics.finance.usd_to_eur \
+  --input_params "usd_amount DOUBLE" \
+  --data_type DOUBLE \
+  --def "return usd_amount * 0.85" \
+  --comment "Converts USD to EUR (simplified)"
+
+# Statistical calculations
+bin/uc function create \
+  --full_name analytics.stats.z_score \
+  --input_params "value DOUBLE, mean DOUBLE, stddev DOUBLE" \
+  --data_type DOUBLE \
+  --def "return (value - mean) / stddev if stddev != 0 else 0" \
+  --comment "Calculates z-score for a value"
+```
+
+### Data Quality
+
+Implement validation functions:
+
+```bash
+# Validate email
+bin/uc function create \
+  --full_name quality.validators.is_valid_email \
+  --input_params "email STRING" \
+  --data_type BOOLEAN \
+  --def "import re; pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; return bool(re.match(pattern, email))" \
+  --comment "Validates email format"
+
+# Check data freshness
+bin/uc function create \
+  --full_name quality.checks.is_recent \
+  --input_params "timestamp_str STRING, max_age_hours INT" \
+  --data_type BOOLEAN \
+  --def "from datetime import datetime, timedelta; ts = datetime.fromisoformat(timestamp_str); return datetime.now() - ts < timedelta(hours=max_age_hours)" \
+  --comment "Checks if timestamp is within max age"
+```
+
+## Best Practices
+
+### Function Design
+
+- **Single responsibility**: Each function should do one thing well
+- **Pure functions**: Prefer deterministic functions when possible
+- **Error handling**: Include proper error handling in function code
+- **Type safety**: Use appropriate parameter and return types
+
+### Naming Conventions
+
+- Use lowercase with underscores: `calculate_tax`, `parse_json`
+- Use verbs for actions: `transform_data`, `validate_email`
+- Use descriptive names: `calculate_sales_tax` vs `calc_tax`
+- Group related functions in schemas: `utils.transforms.*`, `finance.calculations.*`
+
+### Documentation
+
+- Always include meaningful comments describing purpose
+- Document parameter meanings and expected values
+- Note any assumptions or limitations
+- Include example usage in comments
+
+### Performance
+
+- Mark deterministic functions with `is_deterministic: true`
+- Keep function logic simple and focused
+- Avoid expensive operations in frequently-called functions
+- Consider caching for complex calculations
+
+### Security
+
+- Grant `EXECUTE` privilege carefully
+- Avoid exposing sensitive business logic in public functions
+- Validate and sanitize inputs in function code
+- Use appropriate `sql_data_access` settings
+
+### Code Quality
+
+- Test functions thoroughly before deployment
+- Use proper Python formatting and conventions
+- Avoid hardcoded values - use parameters instead
+- Keep function bodies concise and readable
+
+## Function Dependencies
+
+Functions can depend on other objects:
+
+```json
+{
+  "routine_dependencies": {
+    "dependencies": [
+      {
+        "table": {
+          "table_full_name": "catalog.schema.table"
+        }
+      },
+      {
+        "function": {
+          "function_full_name": "catalog.schema.other_function"
+        }
+      }
+    ]
+  }
+}
+```
+
+This tracks lineage and helps manage schema evolution.
+
+## Invoking Functions in Queries
+
+Once registered in Unity Catalog, functions can be invoked in SQL queries:
+
+```sql
+-- Use function in SELECT
+SELECT 
+  customer_id,
+  my_catalog.my_schema.calculate_discount(price, discount_pct) as final_price
+FROM sales;
+
+-- Use function in WHERE clause
+SELECT *
+FROM users
+WHERE my_catalog.my_schema.is_valid_email(email);
+```
+
+## Related Resources
+
+- [Tables](/concepts/tables) - Learn about table structures
+- [Schemas](/concepts/schemas) - Understand function organization
+- [CLI Usage](/cli/overview) - Complete CLI reference

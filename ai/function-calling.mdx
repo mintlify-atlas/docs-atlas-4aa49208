@@ -1,0 +1,440 @@
+---
+title: Function Calling
+description: Create and execute Unity Catalog functions for GenAI agents
+---
+
+# Function Calling
+
+Unity Catalog functions enable you to create reusable, governed tools that can be invoked by GenAI agents. This guide covers creating, managing, and executing functions with proper type hints, schema generation, and integration patterns.
+
+## Creating Functions
+
+### From Python Callables
+
+The recommended approach is to create functions from Python callables using `create_python_function`:
+
+```python
+def add_numbers(a: float, b: float) -> float:
+    """
+    Adds two numbers and returns the result.
+
+    Args:
+        a (float): First number to add.
+        b (float): Second number to add.
+
+    Returns:
+        float: The sum of the two numbers.
+    """
+    return a + b
+
+client.create_python_function(
+    func=add_numbers,
+    catalog="my_catalog",
+    schema="my_schema",
+    replace=False
+)
+```
+
+### Requirements for Python Functions
+
+<Note>
+  All UC functions must meet these requirements:
+</Note>
+
+1. **Type Hints**: All parameters and return values must have type annotations
+2. **Docstring**: Must use [Google-style docstring format](https://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_google.html)
+3. **No Variable Arguments**: `*args` and `**kwargs` are not permitted
+4. **Local Imports**: Import dependencies within the function body
+5. **Compatible Types**: Use SQL-compatible types (see compatibility matrix below)
+
+### Google-Style Docstrings
+
+Proper docstrings are critical for LLMs to understand when and how to use your functions:
+
+```python
+def calculate_discount(price: float, discount_percent: float) -> float:
+    """
+    Calculate the final price after applying a percentage discount.
+
+    This function takes an original price and a discount percentage,
+    then returns the discounted price. The discount is applied as a
+    percentage reduction from the original price.
+
+    Args:
+        price (float): The original price before discount.
+        discount_percent (float): The discount percentage to apply (0-100).
+
+    Returns:
+        float: The final price after applying the discount.
+    """
+    return price * (1 - discount_percent / 100)
+```
+
+<Warning>
+  Verbose and accurate descriptions greatly improve the chances that an LLM will correctly use your function. Avoid vague or placeholder descriptions.
+</Warning>
+
+## Type Hints and Schema Generation
+
+### Python to SQL Compatibility Matrix
+
+Unity Catalog automatically converts Python types to SQL types:
+
+| Python Type | SQL Type | Notes |
+|-------------|----------|-------|
+| `int` | `BIGINT` | 64-bit integer |
+| `float` | `DOUBLE` | Double precision float |
+| `str` | `STRING` | Variable length string |
+| `bool` | `BOOLEAN` | True/False |
+| `bytes` | `BINARY` | Binary data |
+| `list[T]` | `ARRAY<T>` | Must specify inner type |
+| `dict[K, V]` | `MAP<K, V>` | Must specify key and value types |
+| `tuple` | `ARRAY` | Converted to array (tuples not directly supported) |
+| `Optional[T]` | `T` | Marks parameter as nullable |
+
+### Collection Types
+
+<Note>
+  Collection types must specify their inner types:
+</Note>
+
+```python
+def process_data(
+    ids: list[int],
+    metadata: dict[str, str],
+    optional_tags: list[str] | None = None
+) -> dict[str, list[int]]:
+    """
+    Process data with typed collections.
+
+    Args:
+        ids: List of integer IDs to process.
+        metadata: Dictionary mapping string keys to string values.
+        optional_tags: Optional list of tag strings.
+
+    Returns:
+        dict[str, list[int]]: Processed results grouped by category.
+    """
+    result = {"processed": ids}
+    if optional_tags:
+        result["tagged"] = ids[:len(optional_tags)]
+    return result
+```
+
+### Default Parameter Values
+
+```python
+def format_message(
+    text: str,
+    uppercase: bool = False,
+    prefix: str = "Message: "
+) -> str:
+    """
+    Format a text message with optional transformations.
+
+    Args:
+        text: The message text to format.
+        uppercase: If True, convert to uppercase. Defaults to False.
+        prefix: Prefix to add to the message. Defaults to "Message: ".
+
+    Returns:
+        str: The formatted message.
+    """
+    result = prefix + text
+    return result.upper() if uppercase else result
+```
+
+<Note>
+  Default values are preserved in the UC function definition and documented in the schema for LLM understanding.
+</Note>
+
+## Creating Functions from SQL
+
+For advanced use cases, create functions directly from SQL body statements:
+
+```python
+sql_body = """
+CREATE FUNCTION my_catalog.my_schema.uppercase_text(input STRING COMMENT 'Text to convert')
+RETURNS STRING
+LANGUAGE PYTHON
+COMMENT 'Converts input text to uppercase'
+AS $$
+    return input.upper()
+$$
+"""
+
+client.create_function(sql_function_body=sql_body)
+```
+
+### SQL Body with Dependencies (Databricks Runtime 17+)
+
+```python
+sql_body = """
+CREATE FUNCTION my_catalog.my_schema.fetch_data(url STRING COMMENT 'URL to fetch')
+RETURNS STRING
+LANGUAGE PYTHON
+ENVIRONMENT (dependencies='["requests", "pandas"]', environment_version='1')
+COMMENT 'Fetches data from a URL using requests library'
+AS $$
+    import requests
+    response = requests.get(url)
+    return response.text
+$$
+"""
+
+client.create_function(sql_function_body=sql_body)
+```
+
+## Wrapped Functions
+
+Create wrapped functions to bundle helper functions with a primary function:
+
+```python
+def calculate_tax(amount: float) -> float:
+    """Calculate 10% tax on amount."""
+    return amount * 0.1
+
+def calculate_shipping(weight: float) -> float:
+    """Calculate shipping cost based on weight."""
+    return weight * 2.5
+
+def calculate_total(amount: float, weight: float) -> float:
+    """
+    Calculate total cost including tax and shipping.
+
+    Args:
+        amount: The base amount before tax and shipping.
+        weight: The weight in pounds for shipping calculation.
+
+    Returns:
+        float: Total cost including tax and shipping.
+    """
+    tax = calculate_tax(amount)
+    shipping = calculate_shipping(weight)
+    return amount + tax + shipping
+
+# Register as wrapped function
+client.create_wrapped_function(
+    primary_func=calculate_total,
+    functions=[calculate_tax, calculate_shipping],
+    catalog="my_catalog",
+    schema="my_schema"
+)
+```
+
+The helper functions are in-lined into the primary function's definition, keeping related logic together.
+
+## Executing Functions
+
+### Direct Execution
+
+```python
+result = client.execute_function(
+    "my_catalog.my_schema.add_numbers",
+    parameters={"a": 10.5, "b": 5.5}
+)
+
+print(result.value)  # 16.0
+```
+
+### Asynchronous Execution
+
+```python
+result = await client.execute_function_async(
+    "my_catalog.my_schema.add_numbers",
+    parameters={"a": 10.5, "b": 5.5}
+)
+
+print(result.value)  # 16.0
+```
+
+### Error Handling
+
+```python
+result = client.execute_function(
+    "my_catalog.my_schema.risky_function",
+    parameters={"input": "test"}
+)
+
+if result.error:
+    print(f"Execution failed: {result.error}")
+else:
+    print(f"Result: {result.value}")
+```
+
+## Managing Functions
+
+### List Functions
+
+```python
+functions = client.list_functions(
+    catalog="my_catalog",
+    schema="my_schema",
+    max_results=10
+)
+
+for func in functions.items:
+    print(f"{func.full_name}: {func.comment}")
+```
+
+### Get Function Metadata
+
+```python
+function_info = client.get_function("my_catalog.my_schema.add_numbers")
+
+print(f"Name: {function_info.name}")
+print(f"Schema: {function_info.input_params}")
+print(f"Return type: {function_info.data_type}")
+print(f"Comment: {function_info.comment}")
+```
+
+### Retrieve Function Source
+
+Get the function source code as a string:
+
+```python
+func_source = client.get_function_source(
+    "my_catalog.my_schema.add_numbers"
+)
+
+print(func_source)
+# Output:
+# def add_numbers(a: float, b: float) -> float:
+#     """
+#     Adds two numbers and returns the result.
+#     ...
+#     """
+#     return a + b
+```
+
+### Get Function as Callable
+
+Retrieve a function as an executable Python callable:
+
+```python
+add_func = client.get_function_as_callable(
+    "my_catalog.my_schema.add_numbers"
+)
+
+# Use directly
+result = add_func(10, 20)
+print(result)  # 30
+```
+
+### Delete Functions
+
+```python
+client.delete_function("my_catalog.my_schema.old_function")
+```
+
+## Real-World Examples
+
+### Weather Tool
+
+```python
+def get_weather(city: str, units: str = "celsius") -> dict[str, float]:
+    """
+    Get current weather information for a city.
+
+    Retrieves temperature, humidity, and wind speed for the specified city.
+    This is a mock implementation for demonstration.
+
+    Args:
+        city: The name of the city to get weather for.
+        units: Temperature units, either "celsius" or "fahrenheit". Defaults to "celsius".
+
+    Returns:
+        dict[str, float]: Weather data with temperature, humidity, and wind_speed.
+    """
+    # Mock implementation
+    return {
+        "temperature": 22.0 if units == "celsius" else 71.6,
+        "humidity": 65.0,
+        "wind_speed": 15.0
+    }
+
+client.create_python_function(
+    func=get_weather,
+    catalog="tools",
+    schema="weather"
+)
+```
+
+### Database Query Tool
+
+```python
+def query_customer_orders(
+    customer_id: int,
+    days_back: int = 30
+) -> list[dict[str, str]]:
+    """
+    Query recent orders for a customer.
+
+    Retrieves order history for the specified customer within the given time window.
+    Returns order details including order ID, date, and total amount.
+
+    Args:
+        customer_id: The unique identifier for the customer.
+        days_back: Number of days of history to retrieve. Defaults to 30.
+
+    Returns:
+        list[dict[str, str]]: List of orders with id, date, and amount fields.
+    """
+    # Mock implementation
+    return [
+        {"id": "ORD-001", "date": "2024-01-15", "amount": "$99.99"},
+        {"id": "ORD-002", "date": "2024-01-10", "amount": "$149.99"}
+    ]
+```
+
+### Data Processing Tool
+
+```python
+def aggregate_metrics(
+    values: list[float],
+    operation: str
+) -> float:
+    """
+    Aggregate a list of numeric values using the specified operation.
+
+    Supports sum, average, min, and max aggregation operations.
+
+    Args:
+        values: List of numeric values to aggregate.
+        operation: Aggregation type - one of "sum", "avg", "min", "max".
+
+    Returns:
+        float: The aggregated result.
+    """
+    if operation == "sum":
+        return sum(values)
+    elif operation == "avg":
+        return sum(values) / len(values) if values else 0.0
+    elif operation == "min":
+        return min(values) if values else 0.0
+    elif operation == "max":
+        return max(values) if values else 0.0
+    else:
+        raise ValueError(f"Unknown operation: {operation}")
+```
+
+## Best Practices
+
+<Note>
+  Follow these best practices for robust function development:
+</Note>
+
+1. **Descriptive Docstrings**: Write clear, detailed docstrings that explain the function's purpose, parameters, and return values
+2. **Type Safety**: Always use specific type hints, including for collections
+3. **Error Handling**: Include proper error handling within functions
+4. **Local Imports**: Import external libraries inside function bodies
+5. **Test Locally First**: Test functions with `execute_function` before using in agents
+6. **Version Control**: Use descriptive function names and comments to track versions
+7. **Naming Conventions**: Use clear, descriptive names that indicate the function's purpose
+8. **Governance**: Leverage UC's access control to manage who can execute functions
+
+## Next Steps
+
+- [Model Registry](/ai/model-registry): Learn about storing and versioning ML models
+- [Framework Integrations](/ai/integrations/langchain): Integrate functions with LangChain, OpenAI, and more
+- [Client Setup](/ai/client-setup): Advanced client configuration options

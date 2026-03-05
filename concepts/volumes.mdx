@@ -1,0 +1,500 @@
+---
+title: Volumes
+description: Learn about Unity Catalog volumes for managing unstructured data
+---
+
+## Overview
+
+**Volumes** are a Unity Catalog capability for accessing, storing, governing, organizing, and processing files. Volumes enable you to store and manage non-tabular data (unstructured data) alongside your structured tables, all governed by Unity Catalog's security model.
+
+Volumes reside in the third layer of Unity Catalog's namespace (`catalog.schema.volume`), similar to tables, but are designed specifically for file-based data rather than row-based data.
+
+## What Are Volumes For?
+
+Volumes are designed for working with files and unstructured data:
+
+<Card title="Machine Learning" icon="brain">
+  Run ML pipelines on unstructured data such as images, audio, video, or PDF files
+</Card>
+
+<Card title="Data Science" icon="chart-line">
+  Organize datasets during exploration stages and store intermediate results
+</Card>
+
+<Card title="File System Libraries" icon="folder-tree">
+  Work with libraries that require access to local file systems on cluster machines
+</Card>
+
+<Card title="Library Storage" icon="box">
+  Store library and config files of arbitrary formats (.whl, .txt, .json) centrally
+</Card>
+
+<Card title="Secure Access" icon="shield">
+  Provide secure access across workspaces to shared files and datasets
+</Card>
+
+<Card title="ETL Workflows" icon="code-branch">
+  Transform and process non-tabular data files in ETL pipelines
+</Card>
+
+## Volume Types
+
+Unity Catalog supports two types of volumes:
+
+### External Volumes
+
+**External volumes** reference a storage location you manage:
+
+- Unity Catalog manages only the **metadata** (volume name, location)
+- You manage the actual **data files** and storage
+- When you drop an external volume, only metadata is deleted (files remain)
+- Best for data shared across systems or when you need direct storage control
+- Supports S3, Azure Blob Storage, Google Cloud Storage, and local paths
+
+### Managed Volumes
+
+**Managed volumes** are fully controlled by Unity Catalog:
+
+- Unity Catalog manages both **metadata** and **storage lifecycle**
+- Storage location is automatically determined based on catalog/schema settings
+- When you drop a managed volume, both metadata and files are deleted
+- Best for data fully owned within Unity Catalog
+
+<Info>
+Currently, the Unity Catalog open-source implementation primarily works with external volumes.
+</Info>
+
+## Volume Properties
+
+Each volume has the following properties:
+
+<ParamField path="name" type="string" required>
+  Name of the volume, relative to parent schema.
+</ParamField>
+
+<ParamField path="catalog_name" type="string" required>
+  Name of the parent catalog.
+</ParamField>
+
+<ParamField path="schema_name" type="string" required>
+  Name of the parent schema.
+</ParamField>
+
+<ParamField path="full_name" type="string">
+  Full three-level name: `catalog_name.schema_name.volume_name`
+</ParamField>
+
+<ParamField path="volume_type" type="enum" required>
+  Type of volume: `MANAGED` or `EXTERNAL`
+</ParamField>
+
+<ParamField path="storage_location" type="string">
+  Storage root URL where volume files are stored. Required for external volumes.
+</ParamField>
+
+<ParamField path="comment" type="string">
+  User-provided description of the volume's purpose.
+</ParamField>
+
+<ParamField path="volume_id" type="string">
+  Unique identifier for the volume.
+</ParamField>
+
+<ParamField path="owner" type="string">
+  Username of the current owner.
+</ParamField>
+
+<ParamField path="created_at" type="integer">
+  Creation time in epoch milliseconds.
+</ParamField>
+
+<ParamField path="updated_at" type="integer">
+  Last modification time in epoch milliseconds.
+</ParamField>
+
+## Managing Volumes
+
+### List Volumes
+
+List all volumes in a schema:
+
+```bash
+bin/uc volume list \
+  --catalog unity \
+  --schema default
+```
+
+With pagination:
+
+```bash
+bin/uc volume list \
+  --catalog my_catalog \
+  --schema my_schema \
+  --max_results 50
+```
+
+### Get Volume Information
+
+Retrieve metadata about a specific volume:
+
+```bash
+bin/uc volume get --full_name my_catalog.my_schema.my_volume
+```
+
+Example output:
+
+```json
+{
+  "catalog_name": "main",
+  "schema_name": "default",
+  "name": "my_volume",
+  "volume_type": "EXTERNAL",
+  "storage_location": "s3://my-bucket/my-volume",
+  "created_at": 1666369196203,
+  "updated_at": 1666369196203,
+  "comment": "ML training data"
+}
+```
+
+### Create a Volume
+
+Create an external volume with local storage:
+
+```bash
+bin/uc volume create \
+  --full_name my_catalog.my_schema.my_volume \
+  --storage_location "/path/to/storage"
+```
+
+Create with a comment:
+
+```bash
+bin/uc volume create \
+  --full_name my_catalog.my_schema.ml_datasets \
+  --storage_location "/data/ml-datasets" \
+  --comment "Machine learning training datasets"
+```
+
+Create with S3 storage:
+
+```bash
+bin/uc volume create \
+  --full_name data_lake.raw.logs \
+  --storage_location "s3://my-bucket/logs" \
+  --comment "Application log files"
+```
+
+<Note>
+When using cloud storage (S3, Azure Blob, GCS), ensure the UC server has proper credentials configured. See the [server configuration documentation](/server/configuration) for details.
+</Note>
+
+### Update a Volume
+
+Rename a volume:
+
+```bash
+bin/uc volume update \
+  --full_name my_catalog.my_schema.my_volume \
+  --new_name my_updated_volume
+```
+
+Update comment:
+
+```bash
+bin/uc volume update \
+  --full_name my_catalog.my_schema.my_volume \
+  --comment "Updated description for ML data"
+```
+
+Update both name and comment:
+
+```bash
+bin/uc volume update \
+  --full_name my_catalog.my_schema.old_name \
+  --new_name new_name \
+  --comment "Renamed and updated volume"
+```
+
+<Info>
+At least one of `new_name` or `comment` must be specified when updating a volume.
+</Info>
+
+### Read Volume Contents
+
+List contents of a volume:
+
+```bash
+bin/uc volume read --full_name my_catalog.my_schema.my_volume
+```
+
+Read specific path within volume:
+
+```bash
+bin/uc volume read \
+  --full_name my_catalog.my_schema.my_volume \
+  --path "subdirectory/file.txt"
+```
+
+Behavior:
+- If `path` is a **directory**, the command lists contents (like `ls`)
+- If `path` is a **file**, the command displays file contents (like `cat`)
+- If `path` is omitted, lists the volume root directory
+
+### Write to Volume
+
+Write sample data to a volume (experimental):
+
+```bash
+bin/uc volume write --full_name my_catalog.my_schema.my_volume
+```
+
+<Note>
+This writes sample text data to a randomly generated filename (UUID) in the volume. This is an experimental feature.
+</Note>
+
+### Delete a Volume
+
+Delete a volume:
+
+```bash
+bin/uc volume delete --full_name my_catalog.my_schema.my_volume
+```
+
+- For **external volumes**: Only metadata is deleted (storage files remain)
+- For **managed volumes**: Both metadata and storage files are deleted
+
+## Storage Locations
+
+Volumes support various storage backends:
+
+### Local File System
+
+Use absolute paths for local storage:
+
+```bash
+bin/uc volume create \
+  --full_name catalog.schema.local_volume \
+  --storage_location "/absolute/path/to/data"
+```
+
+### Amazon S3
+
+Use S3 paths:
+
+```bash
+bin/uc volume create \
+  --full_name catalog.schema.s3_volume \
+  --storage_location "s3://bucket-name/path/to/volume"
+```
+
+### Azure Blob Storage
+
+Use Azure paths:
+
+```bash
+bin/uc volume create \
+  --full_name catalog.schema.azure_volume \
+  --storage_location "abfss://container@account.dfs.core.windows.net/path"
+```
+
+### Google Cloud Storage
+
+Use GCS paths:
+
+```bash
+bin/uc volume create \
+  --full_name catalog.schema.gcs_volume \
+  --storage_location "gs://bucket-name/path/to/volume"
+```
+
+<Note>
+Cloud storage requires proper credential configuration in the Unity Catalog server. The server must be configured with:
+- AWS credentials for S3 access
+- Azure service principals for Azure Blob access  
+- GCP service accounts for GCS access
+</Note>
+
+## Use Cases
+
+### Machine Learning Datasets
+
+Store training data, models, and artifacts:
+
+```bash
+# Training images
+bin/uc volume create \
+  --full_name ml.datasets.images \
+  --storage_location "s3://ml-bucket/training-images" \
+  --comment "Image datasets for computer vision models"
+
+# Model checkpoints
+bin/uc volume create \
+  --full_name ml.models.checkpoints \
+  --storage_location "s3://ml-bucket/model-checkpoints" \
+  --comment "Model training checkpoints"
+
+# Feature data
+bin/uc volume create \
+  --full_name ml.features.embeddings \
+  --storage_location "s3://ml-bucket/embeddings" \
+  --comment "Pre-computed feature embeddings"
+```
+
+### Data Engineering
+
+Organize raw and processed files:
+
+```bash
+# Raw logs
+bin/uc volume create \
+  --full_name data.raw.logs \
+  --storage_location "s3://data-lake/raw-logs" \
+  --comment "Raw application and system logs"
+
+# Config files
+bin/uc volume create \
+  --full_name data.config.pipelines \
+  --storage_location "s3://data-lake/pipeline-configs" \
+  --comment "ETL pipeline configuration files"
+```
+
+### Shared Libraries
+
+Store code and dependencies:
+
+```bash
+# Python packages
+bin/uc volume create \
+  --full_name shared.libraries.python \
+  --storage_location "s3://shared/python-packages" \
+  --comment "Shared Python wheel files and packages"
+
+# Notebooks
+bin/uc volume create \
+  --full_name shared.notebooks.templates \
+  --storage_location "s3://shared/notebook-templates" \
+  --comment "Reusable notebook templates"
+```
+
+### Document Storage
+
+Manage documents and reports:
+
+```bash
+# Reports
+bin/uc volume create \
+  --full_name reporting.output.pdfs \
+  --storage_location "s3://reports/pdf-output" \
+  --comment "Generated PDF reports"
+
+# Documents
+bin/uc volume create \
+  --full_name docs.archive.files \
+  --storage_location "s3://documents/archive" \
+  --comment "Archived document files"
+```
+
+## Access Control
+
+Volumes follow Unity Catalog's security model:
+
+### Privileges
+
+- **READ VOLUME**: Permits reading files and directories within the volume
+- **WRITE VOLUME**: Permits writing files to the volume (when supported)
+- **CREATE VOLUME**: Required on schema to create new volumes
+
+### Grant Access
+
+Use the Unity Catalog permissions API to grant access:
+
+```bash
+# Grant read access
+bin/uc permission update \
+  --securable_type volume \
+  --full_name my_catalog.my_schema.my_volume \
+  --principal user@example.com \
+  --add "READ VOLUME"
+```
+
+## Best Practices
+
+### Naming Conventions
+
+- Use lowercase with underscores: `ml_datasets`, `log_files`
+- Include purpose in name: `training_data`, `model_artifacts`
+- Organize by type or team: `team_alpha_files`, `image_datasets`
+
+### Organization
+
+**By Use Case:**
+```
+ml.datasets.images
+ml.datasets.text
+ml.models.checkpoints
+```
+
+**By Stage:**
+```
+data.raw.logs
+data.processed.logs
+data.archive.logs
+```
+
+**By Team:**
+```
+team_alpha.workspace
+team_beta.workspace
+shared.common
+```
+
+### Storage Management
+
+- Use external volumes for data you manage outside UC
+- Use managed volumes when UC should control the full lifecycle
+- Organize files within volumes into subdirectories
+- Use cloud storage for scalability and durability
+- Consider storage costs and lifecycle policies
+
+### Security
+
+- Grant minimal required privileges (READ vs WRITE)
+- Use volumes to isolate sensitive file data
+- Document data sensitivity in volume comments
+- Audit volume access regularly
+
+### Documentation
+
+- Always add meaningful comments describing volume contents
+- Document file formats and schemas expected in the volume
+- Include owner contact information
+- Note refresh schedules or lifecycle policies
+
+### Performance
+
+- Organize files into logical directory structures
+- Avoid creating volumes with millions of small files
+- Use appropriate cloud storage classes (hot vs cold)
+- Consider caching for frequently accessed data
+
+## Temporary Credentials
+
+Unity Catalog can generate temporary credentials for volume access:
+
+```bash
+# Generate read credentials
+POST /api/2.1/unity-catalog/temporary-volume-credentials
+{
+  "volume_id": "<volume_id>",
+  "operation": "READ_VOLUME"
+}
+```
+
+This returns temporary cloud credentials (AWS, Azure, or GCP) for direct volume access.
+
+## Related Resources
+
+- [Tables](/concepts/tables) - Learn about structured data in tables
+- [Schemas](/concepts/schemas) - Understand volume organization in schemas
+- [CLI Usage](/cli/overview) - Complete CLI reference for volume operations
+- [Server Configuration](/server/configuration) - Configure storage credentials

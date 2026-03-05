@@ -1,97 +1,320 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "Unity Catalog Documentation"
+description: "Open, multimodal catalog for data and AI that provides unified governance for tables, files, functions, and AI models"
+mode: "custom"
 ---
 
-## Setting up
+<div className="relative overflow-hidden dark:bg-[#0B1B2B] bg-gray-50 py-20">
+  <div className="max-w-7xl mx-auto px-6 lg:px-8">
+    <div className="lg:grid lg:grid-cols-12 lg:gap-8 items-center">
+      <div className="lg:col-span-7">
+        <h1 className="text-5xl lg:text-6xl font-bold dark:text-white text-gray-900 mb-6">
+          Unity Catalog Documentation
+        </h1>
+        <p className="text-xl dark:text-gray-300 text-gray-600 mb-8 max-w-2xl">
+          The industry's only universal catalog for data and AI. Build secure, governed data and AI applications with multimodal support across any format, engine, and asset.
+        </p>
+        <div className="flex flex-wrap gap-4">
+          <a
+            href="/quickstart"
+            className="inline-flex items-center justify-center px-6 py-3 text-base font-semibold rounded-lg transition-colors bg-[#f5a800] text-black hover:bg-[#e0ae16] no-underline"
+          >
+            Get Started
+            <svg className="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+          </a>
+          <a
+            href="/api/overview"
+            className="inline-flex items-center justify-center px-6 py-3 text-base font-semibold rounded-lg transition-colors border dark:border-white/30 dark:bg-white/10 dark:text-white border-gray-300 bg-white text-gray-900 dark:hover:bg-white/20 hover:bg-gray-50 no-underline"
+          >
+            Explore API
+          </a>
+        </div>
+      </div>
+      <div className="hidden lg:block lg:col-span-5 mt-8 lg:mt-0">
+        <div className="relative">
+          <div className="dark:bg-[#071a2a] bg-white rounded-2xl p-6 dark:border-[#27272a] border border-gray-200 shadow-lg">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-3 h-3 rounded-full bg-red-500"></div>
+              <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+              <div className="w-3 h-3 rounded-full bg-green-500"></div>
+            </div>
+            <pre className="text-sm dark:text-gray-300 text-gray-700 overflow-x-auto">
+{`# List catalogs
+bin/uc catalog list
 
-Get your documentation site up and running in minutes.
+# Create a table
+bin/uc table create \\
+  --full_name unity.default.users \\
+  --columns "id INT, name STRING" \\
+  --storage_location s3://bucket/path
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+# Query with DuckDB
+SELECT * FROM unity.default.users;`}
+            </pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
-## Make it yours
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <div className="text-center mb-12">
+    <h2 className="text-3xl font-bold dark:text-white text-gray-900 mb-4">
+      Quick Start
+    </h2>
+    <p className="text-lg dark:text-gray-400 text-gray-600">
+      Get up and running with Unity Catalog in minutes
+    </p>
+  </div>
 
-Design a docs site that looks great and empowers your users.
+  <Steps>
+    <Step title="Install and Start the Server">
+      Clone the repository and start the Unity Catalog server locally.
 
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
-  </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
-  </Card>
+      ```bash
+      git clone https://github.com/unitycatalog/unitycatalog.git
+      cd unitycatalog
+      bin/start-uc-server
+      ```
+
+      The server will start on `http://localhost:8080` with a default catalog and sample data.
+    </Step>
+
+    <Step title="Explore with the CLI">
+      Use the CLI to list catalogs, schemas, and tables.
+
+      ```bash
+      # List all catalogs
+      bin/uc catalog list
+
+      # List tables in the default schema
+      bin/uc table list --catalog unity --schema default
+
+      # Read table data
+      bin/uc table read --full_name unity.default.numbers
+      ```
+
+      <Accordion title="Example Output">
+        ```
+        ┌─────────────┬──────────┬─────────┐
+        │    as_int   │ as_double│         │
+        ├─────────────┼──────────┼─────────┤
+        │      123    │  123.45  │   ...   │
+        │      456    │  456.78  │   ...   │
+        └─────────────┴──────────┴─────────┘
+        ```
+      </Accordion>
+    </Step>
+
+    <Step title="Query with DuckDB">
+      Connect DuckDB to Unity Catalog and start querying your data.
+
+      ```sql
+      -- Install extensions
+      INSTALL uc_catalog FROM core_nightly;
+      LOAD uc_catalog;
+
+      -- Connect to Unity Catalog
+      CREATE SECRET (
+        TYPE UC,
+        TOKEN 'not-used',
+        ENDPOINT 'http://127.0.0.1:8080',
+        AWS_REGION 'us-east-2'
+      );
+
+      -- Attach catalog
+      ATTACH 'unity' AS unity (TYPE UC_CATALOG);
+
+      -- Query tables
+      SELECT * FROM unity.default.numbers;
+      ```
+    </Step>
+
+    <Step title="Integrate AI Functions">
+      Use Unity Catalog's AI capabilities to manage and call functions in your GenAI applications.
+
+      ```python
+      from unitycatalog.ai.core.client import UnitycatalogFunctionClient
+      from unitycatalog.client import ApiClient, Configuration
+
+      # Setup client
+      config = Configuration(host="http://localhost:8080/api/2.1/unity-catalog")
+      client = UnitycatalogFunctionClient(api_client=ApiClient(configuration=config))
+
+      # Create and execute a function
+      result = client.execute_function("unity.default.my_function", {"param": "value"})
+      ```
+
+      Learn more in the [AI & ML documentation](/ai/introduction).
+    </Step>
+  </Steps>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <div className="text-center mb-12">
+    <h2 className="text-3xl font-bold dark:text-white text-gray-900 mb-4">
+      Explore by Topic
+    </h2>
+    <p className="text-lg dark:text-gray-400 text-gray-600">
+      Deep dive into Unity Catalog's core capabilities
+    </p>
+  </div>
+
+  <CardGroup cols={3}>
     <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
-  </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
+      title="Core Concepts"
+      icon="book-open"
+      href="/concepts/catalogs"
+    >
+      Understand catalogs, schemas, tables, volumes, functions, and models
+    </Card>
+    <Card
+      title="CLI Usage"
+      icon="terminal"
+      href="/cli/overview"
+    >
+      Manage your catalog assets from the command line
+    </Card>
+    <Card
+      title="Server Setup"
+      icon="server"
+      href="/server/installation"
+    >
+      Deploy and configure Unity Catalog in your environment
+    </Card>
+    <Card
+      title="AI & ML"
+      icon="brain"
+      href="/ai/introduction"
+    >
+      Build GenAI applications with function calling and model registry
+    </Card>
+    <Card
+      title="Integrations"
+      icon="plug"
+      href="/integrations/overview"
+    >
+      Connect DuckDB, Spark, Trino, and other compute engines
+    </Card>
+    <Card
+      title="API Reference"
+      icon="code"
+      href="/api/overview"
+    >
+      Explore the REST API and SDKs for Python and Java
+    </Card>
+  </CardGroup>
+</div>
 
-## Create beautiful pages
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <div className="text-center mb-12">
+    <h2 className="text-3xl font-bold dark:text-white text-gray-900 mb-4">
+      Key Features
+    </h2>
+    <p className="text-lg dark:text-gray-400 text-gray-600">
+      Why developers choose Unity Catalog
+    </p>
+  </div>
 
-Everything you need to create world-class documentation.
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="dark:bg-[#1a1d27] bg-white rounded-xl p-6 dark:border-[#27272a] border border-gray-200">
+      <div className="flex items-start gap-4">
+        <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-[#e0ae16]/10 flex items-center justify-center">
+          <svg className="w-6 h-6 text-[#e0ae16]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+          </svg>
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold dark:text-white text-gray-900 mb-2">
+            Multimodal Support
+          </h3>
+          <p className="dark:text-gray-400 text-gray-600">
+            Catalog and govern tables, files, functions, and AI models in a single unified system with consistent access controls.
+          </p>
+        </div>
+      </div>
+    </div>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+    <div className="dark:bg-[#1a1d27] bg-white rounded-xl p-6 dark:border-[#27272a] border border-gray-200">
+      <div className="flex items-start gap-4">
+        <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-[#e0ae16]/10 flex items-center justify-center">
+          <svg className="w-6 h-6 text-[#e0ae16]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          </svg>
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold dark:text-white text-gray-900 mb-2">
+            Multi-Format & Multi-Engine
+          </h3>
+          <p className="dark:text-gray-400 text-gray-600">
+            Support for Delta Lake, Iceberg, Hudi, Parquet, CSV, and JSON. Works with DuckDB, Spark, Trino, and more.
+          </p>
+        </div>
+      </div>
+    </div>
 
-## Need inspiration?
+    <div className="dark:bg-[#1a1d27] bg-white rounded-xl p-6 dark:border-[#27272a] border border-gray-200">
+      <div className="flex items-start gap-4">
+        <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-[#e0ae16]/10 flex items-center justify-center">
+          <svg className="w-6 h-6 text-[#e0ae16]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold dark:text-white text-gray-900 mb-2">
+            Unified Governance
+          </h3>
+          <p className="dark:text-gray-400 text-gray-600">
+            Fine-grained access control, audit logging, and secure credential management across all your data and AI assets.
+          </p>
+        </div>
+      </div>
+    </div>
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+    <div className="dark:bg-[#1a1d27] bg-white rounded-xl p-6 dark:border-[#27272a] border border-gray-200">
+      <div className="flex items-start gap-4">
+        <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-[#e0ae16]/10 flex items-center justify-center">
+          <svg className="w-6 h-6 text-[#e0ae16]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+          </svg>
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold dark:text-white text-gray-900 mb-2">
+            Open Source & Standards
+          </h3>
+          <p className="dark:text-gray-400 text-gray-600">
+            Apache 2.0 licensed with OpenAPI spec. Compatible with Hive metastore and Iceberg REST catalog APIs.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <div className="dark:bg-[#1a1d27] bg-white rounded-2xl p-8 dark:border-[#27272a] border border-gray-200 text-center">
+    <h2 className="text-2xl font-bold dark:text-white text-gray-900 mb-4">
+      Ready to get started?
+    </h2>
+    <p className="text-lg dark:text-gray-400 text-gray-600 mb-6 max-w-2xl mx-auto">
+      Join the community building the future of open data and AI governance. Start exploring Unity Catalog today.
+    </p>
+    <div className="flex flex-wrap justify-center gap-4">
+      <a
+        href="/quickstart"
+        className="inline-flex items-center justify-center px-6 py-3 text-base font-semibold rounded-lg transition-colors bg-[#f5a800] text-black hover:bg-[#e0ae16] no-underline"
+      >
+        Get Started
+      </a>
+      <a
+        href="https://github.com/unitycatalog/unitycatalog"
+        className="inline-flex items-center justify-center px-6 py-3 text-base font-semibold rounded-lg transition-colors dark:border-white/30 dark:bg-white/10 dark:text-white border-gray-300 bg-white text-gray-900 dark:hover:bg-white/20 hover:bg-gray-50 no-underline"
+      >
+        View on GitHub
+      </a>
+    </div>
+  </div>
+</div>

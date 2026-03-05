@@ -1,0 +1,517 @@
+---
+title: Authentication & Authorization
+description: Configure external authentication providers and manage user access
+---
+
+Unity Catalog supports integration with external authentication providers while maintaining a local user database for authorization. This guide covers setting up authentication and managing user permissions.
+
+## Overview
+
+Unity Catalog implements a two-step security model:
+
+1. **Authentication**: External identity provider (e.g., Google, Okta) verifies user identity
+2. **Authorization**: Local Unity Catalog database controls what the authenticated user can access
+
+<Note>
+Users must be authenticated by the external provider AND exist in the Unity Catalog local user database to access resources.
+</Note>
+
+![Unity Catalog Authentication Flow](../assets/images/uc-auth-diagram-simplified.png)
+
+### Authentication Flow
+
+<Steps>
+  <Step title="User authenticates with external provider">
+    The user logs in through the external identity provider (e.g., Google Identity) to verify their identity.
+  </Step>
+
+  <Step title="External provider issues token">
+    If authentication succeeds, the provider returns an access token to the user.
+  </Step>
+
+  <Step title="Unity Catalog authorizes access">
+    With the token, the user requests access to Unity Catalog resources. UC checks the local database to verify permissions.
+  </Step>
+
+  <Step title="Access granted or denied">
+    If authorized in the UC database, the user can perform allowed operations. Otherwise, access is denied.
+  </Step>
+</Steps>
+
+## Configuring Authentication
+
+### Prerequisites
+
+Before enabling authentication:
+
+1. Set up an account with your identity provider (Google, Okta, etc.)
+2. Create an OAuth application and obtain:
+   - Client ID
+   - Client Secret
+   - Authorization URL
+   - Token URL
+
+### Google Identity Provider Setup
+
+For detailed instructions on setting up Google as your identity provider, see [Configure Google Authentication](https://github.com/unitycatalog/unitycatalog/blob/main/docs/server/google-auth.md).
+
+<Steps>
+  <Step title="Create Google Cloud Project">
+    Go to [Google Cloud Console](https://console.cloud.google.com/cloud-resource-manager) and create a new project.
+  </Step>
+
+  <Step title="Configure OAuth consent screen">
+    Navigate to **APIs & Services > OAuth consent screen**:
+    - Choose **External**
+    - Provide app name, support email, and developer contact
+  </Step>
+
+  <Step title="Create OAuth client ID">
+    Go to **APIs & Services > Credentials** and create credentials:
+    - **Application type**: Web application
+    - **Authorized JavaScript origins**: `http://localhost`, `http://localhost:3000`
+    - **Authorized redirect URIs**: `http://localhost`, `http://localhost:3000`
+  </Step>
+
+  <Step title="Save credentials">
+    Copy the **Client ID** and **Client Secret** for the next steps.
+  </Step>
+</Steps>
+
+### Server Configuration
+
+Edit `etc/conf/server.properties` with your identity provider details:
+
+```properties etc/conf/server.properties
+server.authorization=enable
+server.authorization-url=https://accounts.google.com/o/oauth2/auth
+server.token-url=https://oauth2.googleapis.com/token
+server.client-id=111122223333-abab1212cdcd3434.apps.googleusercontent.com
+server.client-secret=GOCSPX-ababfoobarcdcd-5q
+```
+
+<ParamField path="server.authorization" type="string" required>
+  Set to `enable` to activate authentication
+</ParamField>
+
+<ParamField path="server.authorization-url" type="string" required>
+  OAuth authorization endpoint URL from your identity provider
+</ParamField>
+
+<ParamField path="server.token-url" type="string" required>
+  OAuth token endpoint URL from your identity provider
+</ParamField>
+
+<ParamField path="server.client-id" type="string" required>
+  OAuth client ID from your identity provider
+</ParamField>
+
+<ParamField path="server.client-secret" type="string" required>
+  OAuth client secret from your identity provider
+</ParamField>
+
+### Restart the Server
+
+After configuring authentication, restart Unity Catalog:
+
+```bash
+bin/start-uc-server
+```
+
+On startup, the server automatically:
+- Creates internal signing keys in `etc/conf`
+- Generates an admin access token at `etc/conf/token.txt`
+- Creates an admin account in the user database
+- Grants metastore admin privileges to the admin account
+
+## Managing Users
+
+### Admin Token
+
+The admin token is stored in `etc/conf/token.txt`. Use it for administrative operations:
+
+```bash
+export ADMIN_TOKEN=$(cat etc/conf/token.txt)
+```
+
+### List Users
+
+View all users in the local database:
+
+```bash
+bin/uc --auth_token $ADMIN_TOKEN user list
+```
+
+Expected output:
+
+```console
+┌────────────────────────────────────┬──────┬───────────────┬───────────┬───────┬───────────┬─────────────┬─────────────┐
+│                 ID                 │ NAME │     EMAIL     │EXTERNAL_ID│ STATE │PICTURE_URL│ CREATED_AT  │ UPDATED_AT  │
+├────────────────────────────────────┼──────┼───────────────┼───────────┼───────┼───────────┼─────────────┼─────────────┤
+│c6e354c9-ec27-4815-9212-4bdb4fdbfea4│Admin │admin          │null       │ENABLED│null       │1727198813231│1727220886536│
+└────────────────────────────────────┴──────┴───────────────┴───────────┴───────┴───────────┴─────────────┴─────────────┘
+```
+
+### Create User Account
+
+Add a user to the local database:
+
+```bash
+bin/uc --auth_token $ADMIN_TOKEN user create \
+  --name "Bobbie Draper" \
+  --email bobbie@rocinante.com
+```
+
+<Warning>
+Users must exist in the local database to access Unity Catalog, even after successfully authenticating with the external provider.
+</Warning>
+
+## User Authentication
+
+### Login with User Account
+
+Users can authenticate using the CLI:
+
+```bash
+bin/uc auth login --output jsonPretty
+```
+
+This command:
+1. Opens the default browser to the identity provider login page
+2. User authenticates with their credentials
+3. Returns an access token if authentication succeeds
+
+Expected output:
+
+```json
+{
+  "access_token" : "exJ...N8zt$w"
+}
+```
+
+Save the token for subsequent requests:
+
+```bash
+export USER_TOKEN='exJ...N8zt$w'
+```
+
+### Using the --auth_token Flag
+
+Include the `--auth_token` flag with CLI commands:
+
+```bash
+# List catalogs (requires appropriate permissions)
+bin/uc --auth_token $USER_TOKEN catalog list
+
+# Create a table (requires CREATE TABLE permission)
+bin/uc --auth_token $USER_TOKEN table create \
+  --full_name unity.default.my_table \
+  --columns "id INT, name STRING" \
+  --storage_location s3://my-bucket/tables/my_table
+```
+
+## Managing Permissions
+
+Unity Catalog uses a hierarchical permission model: **metastore > catalog > schema > table**.
+
+### Permission Types
+
+- **Metastore level**: `CREATE CATALOG`
+- **Catalog level**: `USE CATALOG`, `CREATE SCHEMA`
+- **Schema level**: `USE SCHEMA`, `CREATE TABLE`, `CREATE FUNCTION`
+- **Table level**: `SELECT`, `MODIFY`
+
+### Grant Catalog Permissions
+
+Allow a user to access a catalog:
+
+```bash
+bin/uc --auth_token $ADMIN_TOKEN permission create \
+  --securable_type catalog \
+  --name unity \
+  --privilege 'USE CATALOG' \
+  --principal bobbie@rocinante.com
+```
+
+### Grant Schema Permissions
+
+Allow a user to access a schema:
+
+```bash
+bin/uc --auth_token $ADMIN_TOKEN permission create \
+  --securable_type schema \
+  --name unity.default \
+  --privilege 'USE SCHEMA' \
+  --principal bobbie@rocinante.com
+```
+
+### Grant Table Permissions
+
+Allow a user to read from a table:
+
+```bash
+bin/uc --auth_token $ADMIN_TOKEN permission create \
+  --securable_type table \
+  --name unity.default.numbers \
+  --privilege 'SELECT' \
+  --principal bobbie@rocinante.com
+```
+
+### Grant Metastore Permissions
+
+Allow a user to create catalogs:
+
+```bash
+bin/uc --auth_token $ADMIN_TOKEN permission create \
+  --securable_type metastore \
+  --name metastore \
+  --privilege 'CREATE CATALOG' \
+  --principal bobbie@rocinante.com
+```
+
+## Using Authenticated Clients
+
+### DuckDB with Authentication
+
+Connect to Unity Catalog from DuckDB using a user token:
+
+```sql
+install uc_catalog from core_nightly;
+load uc_catalog;
+install delta;
+load delta;
+
+CREATE SECRET (
+  TYPE UC,
+  TOKEN 'exJ...N8zt$w',  -- Use your actual user token
+  ENDPOINT 'http://127.0.0.1:8080',
+  AWS_REGION 'us-east-2'
+);
+
+ATTACH 'unity' AS unity (TYPE UC_CATALOG);
+SHOW ALL TABLES;
+SELECT * from unity.default.numbers;
+```
+
+### Spark with Authentication
+
+Configure Spark to use authentication:
+
+```bash
+bin/spark-sql --name "local-uc-test" \
+  --master "local[*]" \
+  --packages "io.delta:delta-spark_2.13:4.0.0,io.unitycatalog:unitycatalog-spark_2.13:0.3.0" \
+  --conf "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension" \
+  --conf "spark.sql.catalog.unity=io.unitycatalog.spark.UCSingleCatalog" \
+  --conf "spark.sql.catalog.unity.uri=http://localhost:8080" \
+  --conf "spark.sql.catalog.unity.token=$USER_TOKEN" \
+  --conf "spark.sql.defaultCatalog=unity"
+```
+
+<Note>
+Replace `$USER_TOKEN` with the actual token obtained from `bin/uc auth login`.
+</Note>
+
+## Unity Catalog UI Authentication
+
+### Configure UI Authentication
+
+Edit `ui/.env` to enable authentication in the UI:
+
+```bash ui/.env
+REACT_APP_GOOGLE_AUTH_ENABLED=true
+REACT_APP_GOOGLE_CLIENT_ID=111122223333-abab1212cdcd3434.apps.googleusercontent.com
+```
+
+### Start the UI
+
+```bash
+cd ui
+yarn install
+yarn start
+```
+
+The UI will open with the identity provider login screen.
+
+<Warning>
+Both server and UI authentication must be enabled for the UI to function properly. Mismatched configuration will result in login failures.
+</Warning>
+
+## Authentication Scenarios
+
+### Scenario 1: Server Disabled, UI Enabled
+
+```properties etc/conf/server.properties
+server.authorization=disable
+```
+
+```bash ui/.env
+REACT_APP_GOOGLE_AUTH_ENABLED=true
+```
+
+**Result**: UI shows login screen but fails to authenticate because server doesn't require authentication.
+
+### Scenario 2: Server Enabled, UI Disabled
+
+```properties etc/conf/server.properties
+server.authorization=enable
+```
+
+```bash ui/.env
+REACT_APP_GOOGLE_AUTH_ENABLED=false
+```
+
+**Result**: UI loads without login but cannot query Unity Catalog assets (server requires authentication).
+
+### Scenario 3: Both Disabled
+
+```properties etc/conf/server.properties
+server.authorization=disable
+```
+
+```bash ui/.env
+REACT_APP_GOOGLE_AUTH_ENABLED=false
+```
+
+**Result**: No authentication required. UI works without login (not recommended for production).
+
+### Scenario 4: Both Enabled (Recommended)
+
+```properties etc/conf/server.properties
+server.authorization=enable
+```
+
+```bash ui/.env
+REACT_APP_GOOGLE_AUTH_ENABLED=true
+```
+
+**Result**: Full authentication and authorization working correctly.
+
+## Permission Examples
+
+### Read-Only User
+
+Grant minimal permissions for a read-only user:
+
+```bash
+# Allow catalog access
+bin/uc --auth_token $ADMIN_TOKEN permission create \
+  --securable_type catalog --name unity \
+  --privilege 'USE CATALOG' --principal readonly@example.com
+
+# Allow schema access
+bin/uc --auth_token $ADMIN_TOKEN permission create \
+  --securable_type schema --name unity.default \
+  --privilege 'USE SCHEMA' --principal readonly@example.com
+
+# Allow table reads
+bin/uc --auth_token $ADMIN_TOKEN permission create \
+  --securable_type table --name unity.default.numbers \
+  --privilege 'SELECT' --principal readonly@example.com
+```
+
+### Data Engineer User
+
+Grant permissions for a user who can create and modify tables:
+
+```bash
+# Catalog and schema access
+bin/uc --auth_token $ADMIN_TOKEN permission create \
+  --securable_type catalog --name unity \
+  --privilege 'USE CATALOG' --principal engineer@example.com
+
+bin/uc --auth_token $ADMIN_TOKEN permission create \
+  --securable_type schema --name unity.default \
+  --privilege 'USE SCHEMA' --principal engineer@example.com
+
+# Allow table creation
+bin/uc --auth_token $ADMIN_TOKEN permission create \
+  --securable_type schema --name unity.default \
+  --privilege 'CREATE TABLE' --principal engineer@example.com
+
+# Allow table modification
+bin/uc --auth_token $ADMIN_TOKEN permission create \
+  --securable_type table --name unity.default.numbers \
+  --privilege 'MODIFY' --principal engineer@example.com
+```
+
+### Admin User
+
+Grant full permissions:
+
+```bash
+# Allow catalog creation
+bin/uc --auth_token $ADMIN_TOKEN permission create \
+  --securable_type metastore --name metastore \
+  --privilege 'CREATE CATALOG' --principal admin@example.com
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="User not allowed error">
+    If you see: `User not allowed: user@example.com`
+    
+    The user authenticated successfully but doesn't exist in the UC local database. Add them:
+    
+    ```bash
+    bin/uc --auth_token $ADMIN_TOKEN user create \
+      --name "User Name" --email user@example.com
+    ```
+  </Accordion>
+
+  <Accordion title="Unauthenticated error">
+    If you see: `No authorization found`
+    
+    You're making requests without a token. Include `--auth_token`:
+    
+    ```bash
+    bin/uc --auth_token $USER_TOKEN catalog list
+    ```
+  </Accordion>
+
+  <Accordion title="Insufficient permissions error">
+    The user lacks required permissions. Grant appropriate access:
+    
+    ```bash
+    bin/uc --auth_token $ADMIN_TOKEN permission create \
+      --securable_type table --name unity.default.my_table \
+      --privilege 'SELECT' --principal user@example.com
+    ```
+  </Accordion>
+
+  <Accordion title="Browser doesn't open for auth login">
+    If the browser doesn't open automatically, manually navigate to the URL shown in the terminal output.
+  </Accordion>
+</AccordionGroup>
+
+## Security Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Strong Secrets" icon="key">
+    Keep client secrets secure and rotate them regularly.
+  </Card>
+  
+  <Card title="Principle of Least Privilege" icon="shield">
+    Grant users only the minimum permissions they need.
+  </Card>
+  
+  <Card title="Enable Authentication" icon="lock">
+    Always enable authentication in production environments.
+  </Card>
+  
+  <Card title="Monitor Access" icon="eye">
+    Regularly review user access and permissions.
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/server/configuration">
+    Configure server settings and storage
+  </Card>
+  <Card title="Deployment" icon="rocket" href="/server/deployment">
+    Deploy Unity Catalog to production
+  </Card>
+</CardGroup>

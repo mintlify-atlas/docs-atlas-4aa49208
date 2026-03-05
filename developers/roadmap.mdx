@@ -1,0 +1,424 @@
+---
+title: Unity Catalog Roadmap
+description: Project roadmap and planned features for Unity Catalog
+---
+
+## Overview
+
+This document outlines the roadmap for the Unity Catalog open source project. As always, features may move in/out of milestones pending available resources and priorities.
+
+<Note>
+The roadmap is subject to change based on community feedback and priorities. Get involved in discussions on [GitHub](https://github.com/unitycatalog/unitycatalog) or [Slack](https://go.unitycatalog.io/slack).
+</Note>
+
+## Version 0.4 Release Priorities
+
+### Storage Management
+
+By more tightly integrating the already released credential and external locations API with the rest of the server internals, the next release will allow for more fine-grained, dynamic, and online management of storage locations and their credentials.
+
+Furthermore, operators can delegate some storage management to the catalog via the managed locations for catalogs and schemas features.
+
+**Key Features:**
+- Managed location in catalog
+- Managed location in schema
+- Enhanced credential management
+- External location improvements
+
+### Catalog Managed Commits
+
+Catalog managed commits are the basis for many new and powerful client (Delta) and server side features. Supporting the table scan and commit APIs is a key priority for the upcoming release.
+
+**Key Features:**
+- Table scan APIs
+- Commit APIs
+- Delta Kernel integration
+- Enhanced transaction support
+
+### End-to-End OAuth Support
+
+OAuth support is important for cloud users and RBAC, and Unity Catalog plans to support common OAuth flows for authentication.
+
+**Key Features:**
+- OAuth client-side support (Spark integration)
+- OAuth/OIDC for users
+- Enhanced authentication flows
+- Token refresh mechanisms
+
+## Feature Roadmap by Area
+
+### Core Features
+
+<table>
+  <thead>
+    <tr>
+      <th>Feature</th>
+      <th>v0.1</th>
+      <th>v0.2</th>
+      <th>v0.3</th>
+      <th>v0.4</th>
+      <th>v0.5+</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Catalog API + Server</td>
+      <td>✅</td>
+      <td>✅</td>
+      <td>✅</td>
+      <td>✅</td>
+      <td>✅</td>
+    </tr>
+    <tr>
+      <td>Schema API + Server</td>
+      <td>✅</td>
+      <td>✅</td>
+      <td>✅</td>
+      <td>✅</td>
+      <td>✅</td>
+    </tr>
+    <tr>
+      <td>Managed location in catalog</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td>🟢 v0.4</td>
+      <td>✅</td>
+    </tr>
+    <tr>
+      <td>Managed location in schema</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td>🟢 v0.4</td>
+      <td>✅</td>
+    </tr>
+    <tr>
+      <td>Credential API</td>
+      <td></td>
+      <td></td>
+      <td>🛠️</td>
+      <td>🟢 v0.4</td>
+      <td>✅</td>
+    </tr>
+    <tr>
+      <td>External Location API</td>
+      <td></td>
+      <td></td>
+      <td>🛠️</td>
+      <td>🟢 v0.4</td>
+      <td>✅</td>
+    </tr>
+    <tr>
+      <td>Multi-tenancy</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td>✅</td>
+    </tr>
+  </tbody>
+</table>
+
+### Identity & Authentication
+
+<table>
+  <thead>
+    <tr>
+      <th>Feature</th>
+      <th>v0.1</th>
+      <th>v0.2</th>
+      <th>v0.3</th>
+      <th>v0.4</th>
+      <th>v0.5+</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Local identity management (user)</td>
+      <td></td>
+      <td>✅</td>
+      <td>✅</td>
+      <td>✅</td>
+      <td>✅</td>
+    </tr>
+    <tr>
+      <td>Group management</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td>✅</td>
+    </tr>
+    <tr>
+      <td>Machine identities (Service Principals)</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td>✅</td>
+    </tr>
+    <tr>
+      <td>SCIM for identity sync from IdP</td>
+      <td></td>
+      <td>✅</td>
+      <td>✅</td>
+      <td>✅</td>
+      <td>✅</td>
+    </tr>
+    <tr>
+      <td>OAuth/OIDC for Users</td>
+      <td></td>
+      <td>✅</td>
+      <td>✅</td>
+      <td>✅</td>
+      <td>✅</td>
+    </tr>
+    <tr>
+      <td>OAuth/OIDC for Services</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td>✅</td>
+    </tr>
+    <tr>
+      <td>OAuth client-side support (Spark)</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td>🟢 v0.4</td>
+      <td>✅</td>
+    </tr>
+  </tbody>
+</table>
+
+### Access Control & Governance
+
+<table>
+  <thead>
+    <tr>
+      <th>Feature</th>
+      <th>Status</th>
+      <th>Target</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Basic grants</td>
+      <td>✅ Implemented</td>
+      <td>v0.2+</td>
+    </tr>
+    <tr>
+      <td>Temporary credential vending (tables, volumes, models)</td>
+      <td>✅ Implemented</td>
+      <td>v0.2+</td>
+    </tr>
+    <tr>
+      <td>Ownership management</td>
+      <td>📋 Planned</td>
+      <td>v0.5+</td>
+    </tr>
+    <tr>
+      <td>Enhanced permissions (MODIFY, CREATE_X, BROWSE)</td>
+      <td>📋 Planned</td>
+      <td>v0.5+</td>
+    </tr>
+    <tr>
+      <td>SQL DCL changes (Spark Integration)</td>
+      <td>📋 Planned</td>
+      <td>v0.5+</td>
+    </tr>
+    <tr>
+      <td>Auditing</td>
+      <td>📋 Planned</td>
+      <td>v0.5+</td>
+    </tr>
+    <tr>
+      <td>Row-level filters</td>
+      <td>🔮 Under consideration</td>
+      <td>TBD</td>
+    </tr>
+    <tr>
+      <td>Column-level masks</td>
+      <td>🔮 Under consideration</td>
+      <td>TBD</td>
+    </tr>
+    <tr>
+      <td>ABAC (Attribute-Based Access Control)</td>
+      <td>🔮 Under consideration</td>
+      <td>TBD</td>
+    </tr>
+    <tr>
+      <td>Lineage</td>
+      <td>🔮 Under consideration</td>
+      <td>TBD</td>
+    </tr>
+  </tbody>
+</table>
+
+### Tables
+
+<table>
+  <thead>
+    <tr>
+      <th>Feature</th>
+      <th>Area</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>External table reads & writes</td>
+      <td>API + Server + Spark + Delta</td>
+      <td>✅ Implemented (v0.1+)</td>
+    </tr>
+    <tr>
+      <td>Managed Delta table reads</td>
+      <td>API + Server + Delta + Spark</td>
+      <td>✅ Implemented (v0.1+)</td>
+    </tr>
+    <tr>
+      <td>Managed Delta tables with catalog-managed commits</td>
+      <td>API + Server + Delta + Kernel</td>
+      <td>🟢 v0.4</td>
+    </tr>
+    <tr>
+      <td>Delta Uniform tables (read as Iceberg via REST API)</td>
+      <td>API + Server + Delta</td>
+      <td>📋 Planned (v0.5+)</td>
+    </tr>
+    <tr>
+      <td>Iceberg tables (create, read, write)</td>
+      <td>API + Server</td>
+      <td>📋 Planned (v0.5+)</td>
+    </tr>
+    <tr>
+      <td>Multi-engine data types</td>
+      <td>API + Server</td>
+      <td>📋 Planned (v0.5+)</td>
+    </tr>
+  </tbody>
+</table>
+
+### Views
+
+- **Basic Spark SQL flavor views** - v0.5+
+- **Multi-dialect views** - v0.5+
+- **Iceberg view support** - v0.5+
+- **Materialized views** - Under development for v0.5+
+- **Streaming tables** - Under development for v0.5+
+- **Shallow clones** - v0.5+
+
+### Non-tabular and AI Assets
+
+<table>
+  <thead>
+    <tr>
+      <th>Asset Type</th>
+      <th>Status</th>
+      <th>Details</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Functions (SQL UDFs, Python UDFs)</td>
+      <td>✅ Implemented</td>
+      <td>API, Server, ML integrations, Spark (v0.1+)</td>
+    </tr>
+    <tr>
+      <td>External volumes</td>
+      <td>✅ Implemented</td>
+      <td>API, Server, Spark integration (v0.1+)</td>
+    </tr>
+    <tr>
+      <td>Managed volumes</td>
+      <td>📋 Planned</td>
+      <td>v0.5+</td>
+    </tr>
+    <tr>
+      <td>Models and model versions</td>
+      <td>✅ Implemented</td>
+      <td>API, Server, MLflow integration (v0.2+)</td>
+    </tr>
+    <tr>
+      <td>Multi-engine functions (SQL)</td>
+      <td>🔮 Under consideration</td>
+      <td>TBD</td>
+    </tr>
+    <tr>
+      <td>Remote functions</td>
+      <td>🔮 Under consideration</td>
+      <td>TBD</td>
+    </tr>
+    <tr>
+      <td>Feature tables</td>
+      <td>🔮 Under consideration</td>
+      <td>TBD</td>
+    </tr>
+    <tr>
+      <td>Data monitors</td>
+      <td>🔮 Under consideration</td>
+      <td>TBD</td>
+    </tr>
+  </tbody>
+</table>
+
+### Sharing
+
+All sharing features are under consideration for future releases:
+
+- **Delta Sharing integration**
+- **Shares API**
+- **Recipients API**
+- **Providers API**
+
+### Federation
+
+All federation features are under consideration for future releases:
+
+- **Connections API**
+- **Foreign objects** (catalogs, schemas, tables)
+- **Multiple data sources** (JDBC, Iceberg REST, HMS)
+
+### Server Production-Readiness
+
+Planned for v0.5+ to support running as HMS replacement:
+
+- **Monitoring and Telemetry**
+- **Database schema upgrades**
+- **Change events**
+
+## Legend
+
+- ✅ **Implemented** - Feature is available in released version
+- 🟢 **Current Release** - Feature in active development for v0.4
+- 🛠️ **In Progress** - Feature partially implemented
+- 📋 **Planned** - Feature planned for future release
+- 🔮 **Under Consideration** - Feature being evaluated
+- ❓ **TBD** - Timeline to be determined
+
+## Get Involved
+
+Want to contribute to the roadmap? Here's how:
+
+<Steps>
+  <Step title="Join the Community">
+    Connect with us on [Slack](https://go.unitycatalog.io/slack) or [GitHub Discussions](https://github.com/unitycatalog/unitycatalog/discussions)
+  </Step>
+
+  <Step title="Propose Features">
+    Open a [GitHub Issue](https://github.com/unitycatalog/unitycatalog/issues) with your feature proposal
+  </Step>
+
+  <Step title="Contribute Code">
+    Check out our [Contributing Guide](/developers/contributing) and pick up an issue
+  </Step>
+</Steps>
+
+## Additional Resources
+
+- [Contributing Guidelines](/developers/contributing)
+- [Building Unity Catalog](/developers/building)
+- [GitHub Repository](https://github.com/unitycatalog/unitycatalog)
+- [Community Slack](https://go.unitycatalog.io/slack)

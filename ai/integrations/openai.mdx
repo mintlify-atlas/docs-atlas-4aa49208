@@ -1,0 +1,412 @@
+---
+title: OpenAI Integration
+description: Use Unity Catalog functions with OpenAI's function calling API
+---
+
+Integrate Unity Catalog AI with OpenAI to use UC functions as tools in function calling workflows.
+
+## Installation
+
+Install the Unity Catalog OpenAI integration from PyPI:
+
+```bash
+pip install unitycatalog-openai
+```
+
+For **Databricks Unity Catalog**, install with the optional databricks package:
+
+```bash
+pip install unitycatalog-openai[databricks]
+```
+
+## Setup
+
+<Steps>
+  <Step title="Create a Unity Catalog Client">
+    Initialize the `UnitycatalogFunctionClient`:
+
+    ```python
+    from unitycatalog.ai.core.client import UnitycatalogFunctionClient
+    from unitycatalog.client import ApiClient, Configuration
+
+    config = Configuration(
+        host="http://localhost:8080/api/2.1/unity-catalog"
+    )
+
+    api_client = ApiClient(configuration=config)
+    uc_client = UnitycatalogFunctionClient(api_client=api_client)
+
+    CATALOG = "my_catalog"
+    SCHEMA = "my_schema"
+    ```
+  </Step>
+
+  <Step title="Create a Unity Catalog Function">
+    Define your function with type hints and docstring:
+
+    ```python
+    def add_numbers(a: float, b: float) -> float:
+        """
+        Adds two numbers and returns the result.
+
+        Args:
+            a (float): First number.
+            b (float): Second number.
+
+        Returns:
+            float: The sum of the two numbers.
+        """
+        return a + b
+
+    function_info = uc_client.create_python_function(
+        func=add_numbers,
+        catalog=CATALOG,
+        schema=SCHEMA,
+        replace=False
+    )
+    ```
+  </Step>
+
+  <Step title="Create UCFunctionToolkit">
+    Convert UC functions to OpenAI tool definitions:
+
+    ```python
+    from unitycatalog.ai.openai.toolkit import UCFunctionToolkit
+
+    toolkit = UCFunctionToolkit(
+        function_names=[f"{CATALOG}.{SCHEMA}.add_numbers"]
+    )
+
+    # Get OpenAI-compatible tool definitions
+    tools = toolkit.tools
+    ```
+  </Step>
+</Steps>
+
+## Using with OpenAI
+
+Call OpenAI's Chat Completion API with UC function tools:
+
+```python
+import openai
+
+messages = [
+    {
+        "role": "system",
+        "content": "You are a helpful assistant. Use tools when needed."
+    },
+    {"role": "user", "content": "What is 2 to the power of 10?"}
+]
+
+response = openai.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=messages,
+    tools=tools
+)
+
+print(response)
+```
+
+## Handling Tool Calls
+
+Process and execute tool calls from OpenAI's response:
+
+```python
+import json
+
+# Extract the tool call
+tool_call = response.choices[0].message.tool_calls[0]
+arguments = json.loads(tool_call.function.arguments)
+
+# Execute the UC function
+func_name = f"{CATALOG}.{SCHEMA}.add_numbers"
+result = uc_client.execute_function(func_name, arguments)
+
+print(result.value)
+```
+
+## Complete Workflow
+
+Handle the full cycle of tool calling:
+
+```python
+import json
+import openai
+from unitycatalog.ai.openai.toolkit import UCFunctionToolkit
+
+# 1. Initial request with tools
+messages = [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "Calculate 2^10"}
+]
+
+response = openai.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=messages,
+    tools=tools
+)
+
+# 2. Extract and execute tool call
+tool_call = response.choices[0].message.tool_calls[0]
+arguments = json.loads(tool_call.function.arguments)
+result = uc_client.execute_function(func_name, arguments)
+
+# 3. Create message with tool result
+function_call_result_message = {
+    "role": "tool",
+    "content": json.dumps({"content": result.value}),
+    "tool_call_id": tool_call.id
+}
+
+# 4. Generate final response
+assistant_message = response.choices[0].message.to_dict()
+completion_payload = {
+    "model": "gpt-4o-mini",
+    "messages": [*messages, assistant_message, function_call_result_message]
+}
+
+final_response = openai.chat.completions.create(
+    model=completion_payload["model"],
+    messages=completion_payload["messages"]
+)
+
+print(final_response.choices[0].message.content)
+```
+
+## Databricks Unity Catalog
+
+<Note>
+For Databricks-managed Unity Catalog, follow the [authentication instructions](https://docs.databricks.com/en/dev-tools/cli/authentication.html) and ensure your access token has workspace-level privileges.
+</Note>
+
+### Client Setup
+
+```python
+from unitycatalog.ai.core.client import set_uc_function_client
+from unitycatalog.ai.core.databricks import DatabricksFunctionClient
+
+client = DatabricksFunctionClient()
+set_uc_function_client(client)
+```
+
+### Create SQL Function
+
+```python
+CATALOG = "catalog"
+SCHEMA = "schema"
+
+func_name = f"{CATALOG}.{SCHEMA}.python_exec"
+sql_body = f"""CREATE OR REPLACE FUNCTION {func_name}(
+    code STRING COMMENT 'Python code to execute. Print final result to stdout.'
+)
+RETURNS STRING
+LANGUAGE PYTHON
+COMMENT 'Executes Python code and returns its stdout.'
+AS $$
+    import sys
+    from io import StringIO
+    stdout = StringIO()
+    sys.stdout = stdout
+    exec(code)
+    return stdout.getvalue()
+$$
+"""
+
+client.create_function(sql_function_body=sql_body)
+```
+
+## Helper Utilities
+
+### Generate Tool Call Messages
+
+Simplify tool call handling with the helper function:
+
+```python
+from unitycatalog.ai.openai.utils import generate_tool_call_messages
+
+# Automatically extract and format tool calls
+messages = generate_tool_call_messages(
+    response=response,
+    client=uc_client
+)
+
+print(messages)
+```
+
+For responses with multiple choices, specify which choice to process:
+
+```python
+messages = generate_tool_call_messages(
+    response=response,
+    client=uc_client,
+    choice_index=0  # Process first choice
+)
+```
+
+## UCFunctionToolkit API
+
+The `UCFunctionToolkit` generates OpenAI-compatible function definitions.
+
+### Parameters
+
+- `function_names` (List[str]): Function names in `catalog.schema.function` format
+- `client` (Optional[BaseFunctionClient]): Client for managing functions
+- `filter_accessible_functions` (bool): Filter functions by permissions (default: False)
+
+### Properties
+
+- `tools`: Returns list of `ChatCompletionToolParam` objects
+- `tools_dict`: Dictionary mapping function names to tool definitions
+
+### Strict Mode
+
+The toolkit generates strict schemas when all parameters use supported JSON schema types:
+
+```python
+toolkit = UCFunctionToolkit(
+    function_names=["catalog.schema.function"]
+)
+
+# Check if strict mode is enabled
+tool = toolkit.tools[0]
+print(tool["function"]["strict"])  # True or False
+```
+
+## Complete Example
+
+<CodeGroup>
+```python Full Workflow
+import json
+import openai
+from unitycatalog.ai.core.client import UnitycatalogFunctionClient
+from unitycatalog.ai.openai.toolkit import UCFunctionToolkit
+from unitycatalog.client import ApiClient, Configuration
+
+# 1. Setup
+config = Configuration(host="http://localhost:8080/api/2.1/unity-catalog")
+api_client = ApiClient(configuration=config)
+uc_client = UnitycatalogFunctionClient(api_client=api_client)
+
+# 2. Create function
+def power(base: float, exponent: float) -> float:
+    """Calculate base raised to exponent.
+    
+    Args:
+        base: The base number
+        exponent: The exponent
+    
+    Returns:
+        base ** exponent
+    """
+    return base ** exponent
+
+uc_client.create_python_function(
+    func=power,
+    catalog="main",
+    schema="default",
+    replace=True
+)
+
+# 3. Create toolkit
+toolkit = UCFunctionToolkit(
+    function_names=["main.default.power"]
+)
+
+# 4. Call OpenAI
+messages = [
+    {"role": "system", "content": "You are a helpful math assistant."},
+    {"role": "user", "content": "What is 2 to the power of 10?"}
+]
+
+response = openai.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=messages,
+    tools=toolkit.tools
+)
+
+# 5. Execute tool call
+tool_call = response.choices[0].message.tool_calls[0]
+arguments = json.loads(tool_call.function.arguments)
+result = uc_client.execute_function("main.default.power", arguments)
+
+# 6. Get final answer
+function_message = {
+    "role": "tool",
+    "content": json.dumps({"result": result.value}),
+    "tool_call_id": tool_call.id
+}
+
+messages.append(response.choices[0].message.to_dict())
+messages.append(function_message)
+
+final_response = openai.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=messages
+)
+
+print(final_response.choices[0].message.content)
+```
+
+```python Using Helper Utility
+import openai
+from unitycatalog.ai.openai.toolkit import UCFunctionToolkit
+from unitycatalog.ai.openai.utils import generate_tool_call_messages
+
+# Setup toolkit
+toolkit = UCFunctionToolkit(
+    function_names=["main.default.power"]
+)
+
+# Initial call
+messages = [
+    {"role": "user", "content": "Calculate 3^4"}
+]
+
+response = openai.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=messages,
+    tools=toolkit.tools
+)
+
+# Use helper to process tool calls
+tool_messages = generate_tool_call_messages(
+    response=response,
+    client=uc_client
+)
+
+# Get final response
+final_response = openai.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=tool_messages
+)
+
+print(final_response.choices[0].message.content)
+```
+</CodeGroup>
+
+## Configuration
+
+### Custom Client
+
+Use different clients per toolkit:
+
+```python
+toolkit = UCFunctionToolkit(
+    function_names=["catalog.schema.function"],
+    client=your_custom_client
+)
+```
+
+<Note>
+The client is only used for retrieving function metadata to generate OpenAI tool definitions. You're responsible for executing functions with `client.execute_function()`.
+</Note>
+
+### Function Execution Arguments
+
+For Databricks-managed UC, see the [function execution arguments configuration](/ai/function-execution).
+
+## Related Resources
+
+- [OpenAI Function Calling Guide](https://platform.openai.com/docs/guides/function-calling)
+- [Unity Catalog Functions](/ai/functions)
+- [Function Execution Configuration](/ai/function-execution)

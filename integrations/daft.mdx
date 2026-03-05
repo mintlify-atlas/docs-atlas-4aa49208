@@ -1,0 +1,429 @@
+---
+title: Daft Integration
+description: Use Daft distributed dataframes to process Unity Catalog tables at scale
+---
+
+[Daft](https://getdaft.io/) is a library for parallel and distributed processing of multimodal data. It provides a familiar DataFrame API with powerful optimizations for large-scale data processing.
+
+## Overview
+
+Daft integrates with Unity Catalog to provide:
+
+<CardGroup cols={2}>
+  <Card title="Distributed Processing" icon="network-wired">
+    Process Unity Catalog tables using distributed compute
+  </Card>
+  <Card title="Delta Lake Support" icon="layer-group">
+    Native support for reading Delta Lake tables
+  </Card>
+  <Card title="Optimized Queries" icon="gauge-high">
+    Automatic predicate pushdown and partition pruning
+  </Card>
+  <Card title="Python-Native" icon="python">
+    Pythonic API for data scientists and engineers
+  </Card>
+</CardGroup>
+
+## Installation
+
+Install Daft with Unity Catalog and Delta Lake dependencies:
+
+```bash
+pip install -U "daft[unity,deltalake]"
+```
+
+## Setup
+
+### Import Required Libraries
+
+```python
+import daft
+from daft.unity_catalog import UnityCatalog
+```
+
+### Start Unity Catalog Server
+
+You need a running Unity Catalog server. For local testing:
+
+```bash
+bin/start-uc-server
+```
+
+## Connect to Unity Catalog
+
+Create a `UnityCatalog` object to connect Daft to your UC server:
+
+```python
+# Connect to local Unity Catalog server
+unity = UnityCatalog(
+    endpoint="http://127.0.0.1:8080",
+    token="not-used",
+)
+```
+
+<ParamField path="endpoint" type="string" required>
+  Unity Catalog server URL
+</ParamField>
+
+<ParamField path="token" type="string" required>
+  Authentication token (use `"not-used"` for local development)
+</ParamField>
+
+### Connect to Databricks Unity Catalog
+
+You can also connect to Unity Catalog in a Databricks workspace:
+
+```python
+unity = UnityCatalog(
+    endpoint="https://<databricks_workspace_id>.cloud.databricks.com",
+    token="<your_databricks_token>",
+)
+```
+
+## Explore Catalogs and Tables
+
+### List Catalogs
+
+```python
+print(unity.list_catalogs())
+```
+
+Output:
+```python
+['unity']
+```
+
+### List Schemas
+
+```python
+print(unity.list_schemas("unity"))
+```
+
+Output:
+```python
+['unity.default']
+```
+
+### List Tables
+
+```python
+print(unity.list_tables("unity.default"))
+```
+
+Output:
+```python
+['unity.default.numbers', 'unity.default.marksheet_uniform', 'unity.default.marksheet']
+```
+
+## Load and Query Tables
+
+### Load a Table
+
+Load a Unity Catalog table into Daft:
+
+```python
+# Load the table metadata
+unity_table = unity.load_table("unity.default.numbers")
+
+# Read the table as a Daft DataFrame
+df = daft.read_deltalake(unity_table)
+```
+
+### Display Data
+
+```python
+df.show()
+```
+
+Output:
+```
+╭─────────┬────────────╮
+│ as_int  ┆ as_double  │
+│ ---     ┆ ---        │
+│ Int64   ┆ Float64    │
+╞═════════╪════════════╡
+│ 564     ┆ 188.755356 │
+│ 755     ┆ 883.610563 │
+│ 644     ┆ 203.439559 │
+│ 75      ┆ 277.880219 │
+│ 42      ┆ 403.857969 │
+│ 680     ┆ 797.691220 │
+│ 821     ┆ 767.799854 │
+│ 484     ┆ 344.003740 │
+│ 477     ┆ 380.678561 │
+│ 131     ┆ 35.443732  │
+╰─────────┴────────────╯
+```
+
+## Filter and Transform Data
+
+Daft automatically optimizes operations on Unity Catalog tables:
+
+### Filter Rows
+
+```python
+# Filter data - pushdown optimization applied
+df_filtered = df.where(df["as_int"] > 500)
+df_filtered.show()
+```
+
+Output:
+```
+╭─────────┬────────────╮
+│ as_int  ┆ as_double  │
+│ ---     ┆ ---        │
+│ Int64   ┆ Float64    │
+╞═════════╪════════════╡
+│ 564     ┆ 188.755356 │
+│ 755     ┆ 883.610563 │
+│ 644     ┆ 203.439559 │
+│ 680     ┆ 797.691220 │
+│ 821     ┆ 767.799854 │
+│ 539     ┆ 425.661029 │
+│ 958     ┆ 509.371273 │
+╰─────────┴────────────╯
+```
+
+### Select Columns
+
+```python
+# Select specific columns
+df_selected = df.select("as_int")
+df_selected.show()
+```
+
+### Aggregations
+
+```python
+# Compute statistics
+df.agg(
+    df["as_int"].mean().alias("avg_int"),
+    df["as_double"].max().alias("max_double"),
+    df["as_int"].count().alias("count")
+).show()
+```
+
+### Complex Transformations
+
+```python
+# Chain multiple operations
+result = (
+    df
+    .where(df["as_int"] > 500)
+    .select(df["as_int"], df["as_double"])
+    .with_column("ratio", df["as_double"] / df["as_int"])
+    .sort("ratio", desc=True)
+    .limit(10)
+)
+result.show()
+```
+
+## Work with Marksheet Table
+
+```python
+# Load marksheet table
+marksheet_table = unity.load_table("unity.default.marksheet")
+df_marks = daft.read_deltalake(marksheet_table)
+
+# Show students with high marks
+df_marks.where(df_marks["marks"] > 800).show()
+
+# Calculate statistics
+df_marks.agg(
+    df_marks["marks"].mean().alias("average_marks"),
+    df_marks["marks"].min().alias("min_marks"),
+    df_marks["marks"].max().alias("max_marks")
+).show()
+```
+
+## Advanced Features
+
+### Predicate Pushdown
+
+Daft automatically pushes filters down to Delta Lake for optimized reads:
+
+```python
+# Only scans relevant data files
+df_filtered = df.where(
+    (df["as_int"] > 500) & (df["as_double"] < 600)
+)
+```
+
+### Partition Pruning
+
+For partitioned tables, Daft prunes partitions automatically:
+
+```python
+# If table is partitioned by date, only scans relevant partitions
+df_recent = df.where(df["date"] >= "2024-01-01")
+```
+
+### Distributed Processing
+
+Daft can scale to large datasets using distributed compute:
+
+```python
+# Set up distributed execution (Ray or multiprocessing)
+import daft
+daft.context.set_runner_ray()  # Use Ray for distributed processing
+
+# Process large tables efficiently
+large_table = unity.load_table("unity.default.large_dataset")
+df_large = daft.read_deltalake(large_table)
+result = df_large.where(df_large["value"] > 1000).groupby("category").agg(
+    df_large["value"].sum().alias("total")
+)
+result.show()
+```
+
+## Supported Operations
+
+<AccordionGroup>
+  <Accordion title="Reading Data">
+    - Read Delta Lake tables from Unity Catalog
+    - Automatic schema detection
+    - Column projection
+    - Predicate pushdown
+  </Accordion>
+  
+  <Accordion title="Filtering & Selection">
+    - Row filtering with `where()`
+    - Column selection with `select()`
+    - Complex predicates with AND/OR
+    - NULL handling
+  </Accordion>
+  
+  <Accordion title="Aggregations">
+    - Group by operations
+    - Sum, mean, min, max, count
+    - Custom aggregation functions
+    - Window functions
+  </Accordion>
+  
+  <Accordion title="Transformations">
+    - Add computed columns
+    - Join dataframes
+    - Sort and limit
+    - Type conversions
+  </Accordion>
+</AccordionGroup>
+
+## Performance Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Filter Early" icon="filter">
+    Apply filters before other operations to reduce data volume
+  </Card>
+  <Card title="Select Columns" icon="table-columns">
+    Only read columns you need to minimize I/O
+  </Card>
+  <Card title="Use Distributed Mode" icon="server">
+    Enable Ray backend for large-scale processing
+  </Card>
+  <Card title="Leverage Partitioning" icon="layer-group">
+    Use partitioned columns in filters for partition pruning
+  </Card>
+</CardGroup>
+
+## Integration with Unity Catalog Features
+
+### Credential Vending
+
+Daft automatically receives temporary credentials from Unity Catalog for accessing cloud storage:
+
+```python
+# No need to configure S3/Azure/GCS credentials
+# Unity Catalog vends them automatically
+df = daft.read_deltalake(unity.load_table("unity.default.s3_table"))
+```
+
+### Schema Evolution
+
+Daft handles schema evolution in Delta tables:
+
+```python
+# Reads tables with evolved schemas
+df = daft.read_deltalake(unity.load_table("unity.default.evolving_table"))
+```
+
+## Limitations
+
+<Warning>
+  - **Read-only**: Daft currently supports reading from Unity Catalog, not writing
+  - **Delta Lake only**: Only Delta Lake format tables are supported (not Iceberg or Hudi)
+  - **In development**: Daft's Unity Catalog support is under rapid development
+</Warning>
+
+## Complete Example
+
+```python
+import daft
+from daft.unity_catalog import UnityCatalog
+
+# Connect to Unity Catalog
+unity = UnityCatalog(
+    endpoint="http://127.0.0.1:8080",
+    token="not-used",
+)
+
+# Explore available tables
+print("Available tables:")
+for table in unity.list_tables("unity.default"):
+    print(f"  - {table}")
+
+# Load and analyze numbers table
+numbers_table = unity.load_table("unity.default.numbers")
+df_numbers = daft.read_deltalake(numbers_table)
+
+print("\nNumbers table preview:")
+df_numbers.show(5)
+
+print("\nFiltered data (as_int > 500):")
+df_filtered = df_numbers.where(df_numbers["as_int"] > 500)
+df_filtered.show(5)
+
+print("\nStatistics:")
+df_numbers.agg(
+    df_numbers["as_int"].mean().alias("avg_int"),
+    df_numbers["as_int"].max().alias("max_int"),
+    df_numbers["as_double"].mean().alias("avg_double")
+).show()
+
+# Load and analyze marksheet table
+marksheet_table = unity.load_table("unity.default.marksheet")
+df_marks = daft.read_deltalake(marksheet_table)
+
+print("\nTop 10 students by marks:")
+df_marks.sort("marks", desc=True).limit(10).show()
+```
+
+## Resources
+
+<CardGroup cols={2}>
+  <Card title="Daft Documentation" icon="book" href="https://www.getdaft.io/projects/docs/en/stable/">
+    Official Daft documentation
+  </Card>
+  <Card title="Unity Catalog Guide" icon="book" href="https://www.getdaft.io/projects/docs/en/stable/integrations/unity_catalog/">
+    Daft Unity Catalog integration guide
+  </Card>
+  <Card title="Delta Lake" icon="layer-group" href="https://delta.io/">
+    Learn about Delta Lake format
+  </Card>
+  <Card title="Ray" icon="server" href="https://www.ray.io/">
+    Distributed computing with Ray
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="Apache Spark" icon="fire" href="/integrations/spark">
+    Write tables with Spark
+  </Card>
+  <Card title="DuckDB" icon="database" href="/integrations/duckdb">
+    Query with DuckDB
+  </Card>
+  <Card title="Trino" icon="server" href="/integrations/trino">
+    Federated queries with Trino
+  </Card>
+</CardGroup>

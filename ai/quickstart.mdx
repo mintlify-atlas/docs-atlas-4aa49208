@@ -1,0 +1,238 @@
+---
+title: Unity Catalog AI Quickstart
+description: Get started with Unity Catalog AI - installation, setup, and first function
+---
+
+# Quickstart Guide
+
+Welcome to the **Unity Catalog AI Core Library**! This guide will help you get started with installing the library, setting up your environment, and creating and executing Unity Catalog (UC) functions. Whether you're using your own UC open-source server or connecting with a Databricks-managed UC, this quickstart will walk you through the essential steps.
+
+## Installation
+
+<Steps>
+  <Step title="Install the Unity Catalog AI library">
+    Install the Unity Catalog AI Core library directly from PyPI:
+
+    ```bash
+    pip install unitycatalog-ai
+    ```
+
+    <Note>
+      If you install any of the integration packages directly (like `unitycatalog-langchain`), the AI core client library `unitycatalog-ai` will be included as a dependency.
+    </Note>
+  </Step>
+
+  <Step title="Optional: Install Databricks extension">
+    If you are interfacing with **Databricks Unity Catalog**, install the optional package extension:
+
+    ```bash
+    pip install unitycatalog-ai[databricks]
+    ```
+
+    <Note>
+      Python 3.10 or higher is required to use `unitycatalog-ai` with Databricks serverless compute for function execution.
+    </Note>
+  </Step>
+</Steps>
+
+## Prerequisites
+
+Before you begin, ensure you have the following:
+
+### Python Version
+
+- **Python 3.10 or higher** is recommended for simplified type hint processing within the Unity Catalog functions client
+
+### Unity Catalog Open Source
+
+Ensure that you have met all of the prerequisites and have followed the [Unity Catalog Quickstart Guide](/quickstart). Once your server is up and running and you are able to create a catalog, schemas, and functions, you're all set to continue.
+
+<Note>
+  To see interactive examples of end-to-end workflows, check out these notebooks:
+  - [Quickstart Notebook](https://github.com/unitycatalog/unitycatalog/blob/main/ai/core/UnityCatalog_Functions_Quickstart.ipynb)
+  - [Dev Loop Notebook](https://github.com/unitycatalog/unitycatalog/blob/main/ai/core/UnityCatalog_AI_DevLoop.ipynb)
+</Note>
+
+### Databricks Unity Catalog
+
+If using Databricks Unity Catalog:
+
+- **Serverless Compute**: Must be enabled for function execution
+- **Authentication**: Follow [Databricks CLI authentication](https://docs.databricks.com/en/dev-tools/cli/authentication.html) instructions
+- **Permissions**: Ensure your access token has workspace-level privilege for managing UC functions
+
+## Creating Your First Function
+
+<Steps>
+  <Step title="Set up the client">
+    Create an instance of the Functions Client:
+
+    <Tabs>
+      <Tab title="Unity Catalog OSS">
+        ```python
+        from unitycatalog.client import ApiClient, Configuration
+        from unitycatalog.ai.core.client import UnitycatalogFunctionClient
+
+        config = Configuration()
+        # Default address for local UC server
+        config.host = "http://localhost:8080/api/2.1/unity-catalog"
+
+        # Create the UnityCatalog client
+        api_client = ApiClient(configuration=config)
+
+        # Create the AI function client
+        client = UnitycatalogFunctionClient(api_client=api_client)
+
+        CATALOG = "my_catalog"
+        SCHEMA = "my_schema"
+        ```
+      </Tab>
+
+      <Tab title="Databricks">
+        ```python
+        from unitycatalog.ai.core.databricks import DatabricksFunctionClient
+
+        client = DatabricksFunctionClient()
+
+        CATALOG = "my_catalog"
+        SCHEMA = "my_schema"
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Define a Python function">
+    Create a Python function with proper type hints and a Google-style docstring:
+
+    ```python
+    def add_numbers(number_1: float, number_2: float) -> float:
+        """
+        A function that accepts two floating point numbers, adds them,
+        and returns the resulting sum as a float.
+
+        Args:
+            number_1 (float): The first of the two numbers to add.
+            number_2 (float): The second of the two numbers to add.
+
+        Returns:
+            float: The sum of the two input numbers.
+        """
+        return number_1 + number_2
+    ```
+
+    <Note>
+      **Requirements for UC functions:**
+      - **Type hints**: All arguments and return value must have type annotations
+      - **Docstring**: Must follow [Google docstring syntax](https://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_google.html)
+      - **No variable arguments**: `*args` and `**kwargs` are not permitted
+      - **Compatible types**: Ensure types are compatible with SQL (see [compatibility matrix](/ai/function-calling#python-to-sql-compatibility))
+    </Note>
+  </Step>
+
+  <Step title="Register the function in UC">
+    Create the function in Unity Catalog:
+
+    ```python
+    function_info = client.create_python_function(
+        func=add_numbers,
+        catalog=CATALOG,
+        schema=SCHEMA,
+    )
+
+    print(f"Created function: {function_info.full_name}")
+    ```
+  </Step>
+
+  <Step title="Execute the function">
+    Test your function by executing it directly:
+
+    ```python
+    result = client.execute_function(
+        f"{CATALOG}.{SCHEMA}.add_numbers",
+        parameters={"number_1": 10.5, "number_2": 5.5}
+    )
+
+    print(result.value)  # Outputs: 16.0
+    ```
+  </Step>
+</Steps>
+
+## Using Functions with LangChain
+
+Now let's integrate your UC function with LangChain to create an AI agent that can use it as a tool.
+
+<Steps>
+  <Step title="Install LangChain integration">
+    ```bash
+    pip install unitycatalog-langchain
+    ```
+  </Step>
+
+  <Step title="Create a LangChain toolkit">
+    Define the UC function to be used as a tool:
+
+    ```python
+    from unitycatalog.ai.langchain.toolkit import UCFunctionToolkit
+
+    # Define the UC function reference
+    func_name = f"{CATALOG}.{SCHEMA}.add_numbers"
+
+    # Create a toolkit with the UC function
+    toolkit = UCFunctionToolkit(function_names=[func_name], client=client)
+    ```
+  </Step>
+
+  <Step title="Create an agent">
+    Use the toolkit in a LangChain agent:
+
+    ```python
+    from langchain.agents import AgentExecutor, create_tool_calling_agent
+    from langchain_core.prompts import ChatPromptTemplate
+    from langchain_community.chat_models.databricks import ChatDatabricks
+
+    # Initialize the LLM
+    llm = ChatDatabricks(endpoint="databricks-meta-llama-3-1-70b-instruct")
+
+    # Define the prompt
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are a helpful assistant. Use tools for computations if applicable."),
+        ("placeholder", "{chat_history}"),
+        ("human", "{input}"),
+        ("placeholder", "{agent_scratchpad}")
+    ])
+
+    # Create the agent with our tools
+    agent = create_tool_calling_agent(llm, toolkit.tools, prompt)
+
+    # Create the executor
+    agent_executor = AgentExecutor(agent=agent, tools=toolkit.tools, verbose=True)
+    ```
+  </Step>
+
+  <Step title="Run the agent">
+    Ask the agent to use your function:
+
+    ```python
+    result = agent_executor.invoke({
+        "input": "What is the sum of 4321.9876 and 1234.5678?"
+    })
+
+    print(result)
+    ```
+
+    The agent will automatically call your `add_numbers` function to compute the result!
+  </Step>
+</Steps>
+
+## Next Steps
+
+Congratulations! You've created your first Unity Catalog function and integrated it with a GenAI agent. Here's what to explore next:
+
+- [Client Setup](/ai/client-setup): Learn about advanced configuration options
+- [Function Calling](/ai/function-calling): Deep dive into creating and managing functions
+- [Model Registry](/ai/model-registry): Store and version ML models
+- [Framework Integrations](/ai/integrations/langchain): Explore other GenAI framework integrations
+
+<Note>
+  For more examples and tutorials, check out the [Unity Catalog AI GitHub repository](https://github.com/unitycatalog/unitycatalog/tree/main/ai).
+</Note>

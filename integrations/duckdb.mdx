@@ -1,0 +1,283 @@
+---
+title: DuckDB Integration
+description: Query Unity Catalog tables with DuckDB's native uc_catalog extension
+---
+
+DuckDB is an in-process analytical database that provides native support for Unity Catalog through the `uc_catalog` extension. This integration allows you to query Delta Lake tables stored in Unity Catalog directly from DuckDB.
+
+## Prerequisites
+
+<CardGroup cols={2}>
+  <Card title="DuckDB" icon="database">
+    Version 1.0 or later
+  </Card>
+  <Card title="Unity Catalog Server" icon="server">
+    Running locally or remotely
+  </Card>
+</CardGroup>
+
+## Installation
+
+First, [install DuckDB](https://duckdb.org/docs/installation/) (version 1.0 or later) on your system.
+
+To start DuckDB, run the following command in your terminal:
+
+```bash
+duckdb
+```
+
+## Setup Extensions
+
+Once in the DuckDB shell, install and load the required extensions:
+
+<Steps>
+  <Step title="Install uc_catalog extension">
+    ```sql
+    install uc_catalog from core_nightly;
+    load uc_catalog;
+    ```
+  </Step>
+  
+  <Step title="Install Delta extension">
+    ```sql
+    install delta;
+    load delta;
+    ```
+  </Step>
+</Steps>
+
+<Note>
+  If you have installed these extensions before, you may need to run `update extensions` and restart DuckDB for the following steps to work.
+</Note>
+
+## Connect to Unity Catalog
+
+Connect DuckDB to your Unity Catalog server by creating a secret with your connection details:
+
+```sql
+CREATE SECRET (
+  TYPE UC,
+  TOKEN 'not-used',
+  ENDPOINT 'http://127.0.0.1:8080',
+  AWS_REGION 'us-east-2'
+);
+```
+
+<ParamField path="TYPE" type="string" required>
+  Must be `UC` to specify Unity Catalog
+</ParamField>
+
+<ParamField path="TOKEN" type="string" required>
+  Authentication token (use 'not-used' for local development)
+</ParamField>
+
+<ParamField path="ENDPOINT" type="string" required>
+  Unity Catalog server URL
+</ParamField>
+
+<ParamField path="AWS_REGION" type="string">
+  AWS region for S3 access (if using S3 storage)
+</ParamField>
+
+You should see output confirming success:
+
+```
+┌─────────┐
+│ Success │
+├─────────┤
+│ true    │
+└─────────┘
+```
+
+## Attach Catalog
+
+Attach the Unity Catalog to DuckDB to make tables accessible:
+
+```sql
+ATTACH 'unity' AS unity (TYPE UC_CATALOG);
+```
+
+This command attaches the `unity` catalog from your Unity Catalog server to DuckDB.
+
+## Query Tables
+
+Now you're ready to query tables stored in Unity Catalog!
+
+### List All Tables
+
+```sql
+SHOW ALL TABLES;
+```
+
+### Query a Specific Table
+
+```sql
+SELECT * FROM unity.default.numbers;
+```
+
+<CodeGroup>
+```sql Example: Filter Query
+SELECT * 
+FROM unity.default.numbers 
+WHERE as_int > 500;
+```
+
+```sql Example: Aggregate Query
+SELECT 
+  COUNT(*) as total_rows,
+  AVG(as_double) as avg_value
+FROM unity.default.numbers;
+```
+
+```sql Example: Join Query
+SELECT 
+  m.id,
+  m.name,
+  m.marks
+FROM unity.default.marksheet m
+WHERE m.marks > 500
+LIMIT 10;
+```
+</CodeGroup>
+
+## Working with Multiple Catalogs
+
+You can attach multiple Unity Catalog instances or catalogs:
+
+```sql
+-- Create separate secrets for different catalogs
+CREATE SECRET catalog1_secret (
+  TYPE UC,
+  TOKEN 'token1',
+  ENDPOINT 'http://catalog1.example.com:8080',
+  AWS_REGION 'us-east-1'
+);
+
+CREATE SECRET catalog2_secret (
+  TYPE UC,
+  TOKEN 'token2',
+  ENDPOINT 'http://catalog2.example.com:8080',
+  AWS_REGION 'us-west-2'
+);
+
+-- Attach both catalogs
+ATTACH 'catalog1' AS cat1 (TYPE UC_CATALOG, SECRET catalog1_secret);
+ATTACH 'catalog2' AS cat2 (TYPE UC_CATALOG, SECRET catalog2_secret);
+
+-- Query across catalogs
+SELECT * FROM cat1.default.table1
+UNION ALL
+SELECT * FROM cat2.default.table2;
+```
+
+## Supported Features
+
+<AccordionGroup>
+  <Accordion title="Delta Lake Tables">
+    Full support for reading Delta Lake tables, including partition pruning and column filtering.
+  </Accordion>
+  
+  <Accordion title="Credential Vending">
+    Unity Catalog automatically provides temporary credentials for accessing data in S3, Azure, or GCS.
+  </Accordion>
+  
+  <Accordion title="Schema Discovery">
+    Automatically discovers schemas, tables, and columns from Unity Catalog metadata.
+  </Accordion>
+  
+  <Accordion title="Predicate Pushdown">
+    DuckDB pushes down filters to optimize query performance on large tables.
+  </Accordion>
+</AccordionGroup>
+
+## Cloud Storage Configuration
+
+When working with tables stored in cloud object storage, Unity Catalog handles credential vending automatically. Ensure your Unity Catalog server is configured with the appropriate cloud credentials:
+
+<Tabs>
+  <Tab title="AWS S3">
+    Configure in `etc/conf/server.properties`:
+    
+    ```properties
+    s3.bucketPath.0=s3://your-bucket
+    s3.region.0=us-east-2
+    s3.awsRoleArn.0=arn:aws:iam::...
+    ```
+  </Tab>
+  
+  <Tab title="Azure ADLS">
+    Configure in `etc/conf/server.properties`:
+    
+    ```properties
+    adls.storageAccountName.0=youraccount
+    adls.tenantId.0=your-tenant-id
+    adls.clientId.0=your-client-id
+    adls.clientSecret.0=your-secret
+    ```
+  </Tab>
+  
+  <Tab title="Google Cloud Storage">
+    Configure in `etc/conf/server.properties`:
+    
+    ```properties
+    gcs.bucketPath.0=gs://your-bucket
+    gcs.jsonKeyFilePath.0=/path/to/key.json
+    ```
+  </Tab>
+</Tabs>
+
+## Exit DuckDB
+
+To quit DuckDB, use one of the following methods:
+
+- Press `Ctrl+D` (if your platform supports it)
+- Press `Ctrl+C`
+- Type `.exit` in the DuckDB shell
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Filters" icon="filter">
+    Apply WHERE clauses to take advantage of partition pruning and reduce data scanned
+  </Card>
+  <Card title="Select Specific Columns" icon="table-columns">
+    Only select needed columns to minimize data transfer and improve performance
+  </Card>
+  <Card title="Update Extensions" icon="arrows-rotate">
+    Regularly update DuckDB extensions to get the latest features and bug fixes
+  </Card>
+  <Card title="Manage Secrets" icon="key">
+    Use named secrets for production environments with proper authentication tokens
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Extension not found">
+    Run `update extensions` and restart DuckDB. Ensure you're using DuckDB 1.0 or later.
+  </Accordion>
+  
+  <Accordion title="Cannot connect to UC server">
+    Verify the Unity Catalog server is running and the endpoint URL is correct. Check firewall settings if connecting to a remote server.
+  </Accordion>
+  
+  <Accordion title="Table not found">
+    Ensure you're using the correct three-part naming: `catalog.schema.table`. Use `SHOW ALL TABLES` to list available tables.
+  </Accordion>
+  
+  <Accordion title="Credential errors">
+    Check that Unity Catalog server has proper cloud storage credentials configured in `server.properties`.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Apache Spark" icon="fire" href="/integrations/spark">
+    Write tables to Unity Catalog with Spark
+  </Card>
+  <Card title="CLI" icon="terminal" href="/usage/cli">
+    Manage Unity Catalog from the command line
+  </Card>
+</CardGroup>

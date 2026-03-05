@@ -1,0 +1,522 @@
+---
+title: Server Deployment
+description: Deploy Unity Catalog server to production environments
+---
+
+This guide covers deploying Unity Catalog to production environments using tarballs, systemd services, and Kubernetes.
+
+## Creating a Deployment Tarball
+
+The recommended way to deploy Unity Catalog is by creating a self-contained tarball.
+
+### Generate the Tarball
+
+From the source code directory, run:
+
+```bash
+build/sbt createTarball
+```
+
+This creates a tarball in the `target` directory:
+
+```
+target/unitycatalog-<version>.tar.gz
+```
+
+### Unpack the Tarball
+
+On your deployment server, unpack the tarball:
+
+```bash
+tar -xvf unitycatalog-<version>.tar.gz
+cd unitycatalog-<version>
+```
+
+### Directory Structure
+
+The unpacked tarball contains:
+
+```console
+unitycatalog-<version>
+├── bin
+│   ├── start-uc-server
+│   └── uc
+├── etc
+│   ├── conf
+│   ├── data
+│   ├── db
+│   └── logs
+└── jars
+```
+
+<ResponseField name="bin" type="directory">
+  Executable scripts:
+  - `start-uc-server`: Starts the Unity Catalog server
+  - `uc`: Command-line interface for interacting with the server
+</ResponseField>
+
+<ResponseField name="etc" type="directory">
+  Configuration and data:
+  - `conf/`: Configuration files
+  - `data/`: Table and volume data files
+  - `db/`: Backend database files
+  - `logs/`: Server log files
+</ResponseField>
+
+<ResponseField name="jars" type="directory">
+  JAR files required to run the Unity Catalog server
+</ResponseField>
+
+## Production Configuration
+
+Before deploying to production, configure the server appropriately.
+
+### Database Configuration
+
+<Warning>
+Do not use the default H2 database for production. Configure a production-grade database like MySQL or PostgreSQL.
+</Warning>
+
+#### MySQL Setup
+
+<Steps>
+  <Step title="Install MySQL">
+    Set up MySQL server in your environment or use a managed service like Amazon RDS or Google Cloud SQL.
+  </Step>
+
+  <Step title="Create database and user">
+    ```sql
+    CREATE DATABASE ucdb;
+    CREATE USER 'uc_user'@'%' IDENTIFIED BY 'secure_password';
+    GRANT ALL PRIVILEGES ON ucdb.* TO 'uc_user'@'%';
+    FLUSH PRIVILEGES;
+    ```
+  </Step>
+
+  <Step title="Download JDBC driver">
+    Download [MySQL Connector/J](https://dev.mysql.com/downloads/connector/j/) and place it in the `jars` directory.
+  </Step>
+
+  <Step title="Configure Hibernate properties">
+    Edit `etc/conf/hibernate.properties`:
+    
+    ```properties
+    hibernate.connection.driver_class=com.mysql.cj.jdbc.Driver
+    hibernate.connection.url=jdbc:mysql://your-mysql-host:3306/ucdb
+    hibernate.connection.user=uc_user
+    hibernate.connection.password=secure_password
+    ```
+  </Step>
+
+  <Step title="Update classpath">
+    Add the JDBC driver to `jars/classpath`:
+    
+    ```
+    /path/to/unitycatalog/jars/mysql-connector-j-8.0.33.jar
+    ```
+  </Step>
+</Steps>
+
+#### PostgreSQL Setup
+
+<Steps>
+  <Step title="Install PostgreSQL">
+    Set up PostgreSQL server or use a managed service.
+  </Step>
+
+  <Step title="Create database and user">
+    ```sql
+    CREATE DATABASE ucdb;
+    CREATE USER uc_user WITH PASSWORD 'secure_password';
+    GRANT ALL PRIVILEGES ON DATABASE ucdb TO uc_user;
+    ```
+  </Step>
+
+  <Step title="Download JDBC driver">
+    Download the [PostgreSQL JDBC driver](https://jdbc.postgresql.org/download/) and place it in the `jars` directory.
+  </Step>
+
+  <Step title="Configure Hibernate properties">
+    Edit `etc/conf/hibernate.properties`:
+    
+    ```properties
+    hibernate.connection.driver_class=org.postgresql.Driver
+    hibernate.connection.url=jdbc:postgresql://your-postgres-host:5432/ucdb
+    hibernate.connection.user=uc_user
+    hibernate.connection.password=secure_password
+    ```
+  </Step>
+
+  <Step title="Update classpath">
+    Add the JDBC driver to `jars/classpath`:
+    
+    ```
+    /path/to/unitycatalog/jars/postgresql-42.6.0.jar
+    ```
+  </Step>
+</Steps>
+
+### Server Configuration
+
+Edit `etc/conf/server.properties` for production:
+
+```properties
+# Use dev mode for persistent database
+server.env=dev
+
+# Enable authentication for production
+server.authorization=enable
+server.authorization-url=https://accounts.google.com/o/oauth2/auth
+server.token-url=https://oauth2.googleapis.com/token
+server.client-id=your-client-id
+server.client-secret=your-client-secret
+
+# Configure AWS credentials (if using S3)
+aws.region=us-east-1
+aws.masterRoleArn=arn:aws:iam::123456789012:role/UCServerRole
+```
+
+## Systemd Service Setup
+
+For Linux servers, create a systemd service to manage Unity Catalog.
+
+<Steps>
+  <Step title="Create service user">
+    ```bash
+    sudo useradd -r -s /bin/false unitycatalog
+    sudo chown -R unitycatalog:unitycatalog /opt/unitycatalog
+    ```
+  </Step>
+
+  <Step title="Create systemd service file">
+    Create `/etc/systemd/system/unitycatalog.service`:
+    
+    ```ini
+    [Unit]
+    Description=Unity Catalog Server
+    After=network.target
+    
+    [Service]
+    Type=simple
+    User=unitycatalog
+    Group=unitycatalog
+    WorkingDirectory=/opt/unitycatalog
+    ExecStart=/opt/unitycatalog/bin/start-uc-server
+    Restart=on-failure
+    RestartSec=10
+    StandardOutput=journal
+    StandardError=journal
+    Environment="JAVA_HOME=/usr/lib/jvm/java-17"
+    
+    [Install]
+    WantedBy=multi-user.target
+    ```
+  </Step>
+
+  <Step title="Enable and start the service">
+    ```bash
+    sudo systemctl daemon-reload
+    sudo systemctl enable unitycatalog
+    sudo systemctl start unitycatalog
+    ```
+  </Step>
+
+  <Step title="Verify the service">
+    ```bash
+    sudo systemctl status unitycatalog
+    sudo journalctl -u unitycatalog -f
+    ```
+  </Step>
+</Steps>
+
+## Kubernetes Deployment
+
+Deploy Unity Catalog to Kubernetes using Helm or custom manifests.
+
+### Using Helm
+
+<Steps>
+  <Step title="Create Helm chart values">
+    Create `values.yaml`:
+    
+    ```yaml
+    replicaCount: 2
+    
+    image:
+      repository: unitycatalog/unitycatalog
+      tag: latest
+      pullPolicy: IfNotPresent
+    
+    service:
+      type: ClusterIP
+      port: 8080
+    
+    ingress:
+      enabled: true
+      className: nginx
+      hosts:
+        - host: uc.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: uc-tls
+          hosts:
+            - uc.example.com
+    
+    persistence:
+      enabled: true
+      storageClass: standard
+      size: 10Gi
+    
+    env:
+      - name: JAVA_HOME
+        value: /usr/lib/jvm/default-jvm
+    
+    resources:
+      requests:
+        memory: "2Gi"
+        cpu: "1000m"
+      limits:
+        memory: "4Gi"
+        cpu: "2000m"
+    ```
+  </Step>
+
+  <Step title="Deploy with Helm">
+    ```bash
+    helm install unitycatalog ./helm/unitycatalog -f values.yaml
+    ```
+  </Step>
+</Steps>
+
+### Using Kubernetes Manifests
+
+<CodeGroup>
+```yaml deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unitycatalog
+  labels:
+    app: unitycatalog
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: unitycatalog
+  template:
+    metadata:
+      labels:
+        app: unitycatalog
+    spec:
+      containers:
+      - name: unitycatalog
+        image: unitycatalog/unitycatalog:latest
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: JAVA_HOME
+          value: /usr/lib/jvm/default-jvm
+        volumeMounts:
+        - name: config
+          mountPath: /opt/unitycatalog/etc/conf
+        - name: data
+          mountPath: /opt/unitycatalog/etc/data
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+        livenessProbe:
+          httpGet:
+            path: /api/2.1/unity-catalog/catalogs
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/2.1/unity-catalog/catalogs
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 5
+      volumes:
+      - name: config
+        configMap:
+          name: unitycatalog-config
+      - name: data
+        persistentVolumeClaim:
+          claimName: unitycatalog-data
+```
+
+```yaml service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: unitycatalog
+  labels:
+    app: unitycatalog
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: unitycatalog
+```
+
+```yaml configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: unitycatalog-config
+data:
+  server.properties: |
+    server.env=dev
+    server.authorization=enable
+    server.authorization-url=https://accounts.google.com/o/oauth2/auth
+    server.token-url=https://oauth2.googleapis.com/token
+    server.client-id=your-client-id
+    server.client-secret=your-client-secret
+  
+  hibernate.properties: |
+    hibernate.connection.driver_class=org.postgresql.Driver
+    hibernate.connection.url=jdbc:postgresql://postgres:5432/ucdb
+    hibernate.connection.user=uc_user
+    hibernate.connection.password=secure_password
+```
+
+```yaml pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: unitycatalog-data
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard
+```
+</CodeGroup>
+
+Deploy the manifests:
+
+```bash
+kubectl apply -f configmap.yaml
+kubectl apply -f pvc.yaml
+kubectl apply -f deployment.yaml
+kubectl apply -f service.yaml
+```
+
+## Environment-Specific Considerations
+
+### Cloud Storage Integration
+
+When deploying to cloud environments, configure appropriate cloud storage credentials:
+
+<Tabs>
+  <Tab title="AWS">
+    Use IAM roles for EC2/EKS instances:
+    
+    ```properties
+    aws.region=us-east-1
+    aws.masterRoleArn=arn:aws:iam::123456789012:role/UCServerRole
+    # Leave accessKey and secretKey empty to use instance profile
+    ```
+  </Tab>
+  
+  <Tab title="Azure">
+    Configure Azure AD service principal:
+    
+    ```properties
+    adls.storageAccountName.0=prodstorageaccount
+    adls.tenantId.0=your-tenant-id
+    adls.clientId.0=your-client-id
+    adls.clientSecret.0=your-client-secret
+    ```
+  </Tab>
+  
+  <Tab title="GCP">
+    Use Workload Identity or service account:
+    
+    ```properties
+    gcs.bucketPath.0=gs://production-data
+    # Leave jsonKeyFilePath empty to use Workload Identity
+    ```
+  </Tab>
+</Tabs>
+
+### Monitoring and Logging
+
+Configure centralized logging:
+
+```bash
+# Forward logs to external system
+tail -f /opt/unitycatalog/etc/logs/server.log | logger -t unitycatalog
+```
+
+For Kubernetes, use a log aggregator like Fluentd or Filebeat.
+
+### Backup and Recovery
+
+<Steps>
+  <Step title="Backup database">
+    Regularly backup your metastore database:
+    
+    ```bash
+    # MySQL
+    mysqldump -u uc_user -p ucdb > ucdb_backup_$(date +%Y%m%d).sql
+    
+    # PostgreSQL
+    pg_dump -U uc_user ucdb > ucdb_backup_$(date +%Y%m%d).sql
+    ```
+  </Step>
+
+  <Step title="Backup configuration">
+    Backup the `etc/conf` directory:
+    
+    ```bash
+    tar -czf uc_config_backup_$(date +%Y%m%d).tar.gz etc/conf/
+    ```
+  </Step>
+</Steps>
+
+## Performance Tuning
+
+### JVM Settings
+
+Optimize Java heap size based on your workload:
+
+```bash
+export JAVA_OPTS="-Xmx4G -Xms2G -XX:+UseG1GC"
+bin/start-uc-server
+```
+
+### Database Connection Pool
+
+Adjust Hibernate connection pool settings in `hibernate.properties`:
+
+```properties
+hibernate.c3p0.min_size=5
+hibernate.c3p0.max_size=20
+hibernate.c3p0.timeout=300
+hibernate.c3p0.max_statements=50
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Docker" icon="docker" href="/server/docker">
+    Deploy using Docker Compose
+  </Card>
+  <Card title="Authentication" icon="lock" href="/server/authentication">
+    Configure authentication and authorization
+  </Card>
+</CardGroup>

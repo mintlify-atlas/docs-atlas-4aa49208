@@ -1,0 +1,352 @@
+---
+title: Client Setup
+description: Configure Unity Catalog AI clients for OSS and Databricks
+---
+
+# Client Setup Guide
+
+This guide provides detailed information about setting up and configuring Unity Catalog AI clients for both open-source Unity Catalog servers and Databricks-managed Unity Catalog.
+
+## UnitycatalogFunctionClient
+
+The `UnitycatalogFunctionClient` is designed for managing and executing functions within Unity Catalog (UC). Built on top of the asynchronous `unitycatalog-client`, this client provides both asynchronous and synchronous interfaces.
+
+### Installation
+
+```bash
+pip install unitycatalog-ai
+```
+
+### Basic Configuration
+
+<Tabs>
+  <Tab title="Unity Catalog OSS">
+    Connect to your open-source Unity Catalog server:
+
+    ```python
+    from unitycatalog.client import ApiClient, Configuration
+    from unitycatalog.ai.core.client import UnitycatalogFunctionClient
+
+    # Configure the UC server connection
+    config = Configuration()
+    config.host = "http://localhost:8080/api/2.1/unity-catalog"
+
+    # Create the API client
+    api_client = ApiClient(configuration=config)
+
+    # Create the function client
+    client = UnitycatalogFunctionClient(api_client=api_client)
+    ```
+
+    <Note>
+      Update `config.host` to match your Unity Catalog server URL if it's not running locally.
+    </Note>
+  </Tab>
+
+  <Tab title="Custom Configuration">
+    Configure with custom settings:
+
+    ```python
+    from unitycatalog.client import ApiClient, Configuration
+    from unitycatalog.ai.core.client import UnitycatalogFunctionClient
+
+    config = Configuration(
+        host="https://your-uc-server.com/api/2.1/unity-catalog",
+        # Add authentication headers if needed
+    )
+
+    api_client = ApiClient(configuration=config)
+    client = UnitycatalogFunctionClient(
+        api_client=api_client,
+        execution_mode="sandbox"  # or "local"
+    )
+    ```
+  </Tab>
+</Tabs>
+
+### Execution Modes
+
+The `UnitycatalogFunctionClient` supports two execution modes:
+
+#### Sandbox Mode (Default)
+
+Provides enhanced security and isolation for function execution:
+
+```python
+client = UnitycatalogFunctionClient(
+    api_client=api_client,
+    execution_mode="sandbox"  # Default
+)
+```
+
+**Features:**
+- Isolated process execution
+- CPU runtime restrictions
+- Virtual memory limits (Linux only)
+- Wall-clock timeout protection
+- Restricted module imports
+
+**Configuration via Environment Variables:**
+
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `EXECUTOR_MAX_CPU_TIME_LIMIT` | 10 seconds | Maximum CPU execution time |
+| `EXECUTOR_MAX_MEMORY_LIMIT` | 100 MB | Maximum virtual memory allocation |
+| `EXECUTOR_TIMEOUT` | 20 seconds | Maximum wall clock time |
+| `EXECUTOR_DISALLOWED_MODULES` | (see below) | Blocked library imports |
+
+**Restricted Modules:**
+- `sys`, `subprocess`, `ctypes`, `socket`
+- `importlib`, `pickle`, `marshall`, `shutil`
+- File `open` command is disabled
+
+#### Local Mode
+
+Executes functions in the main process without restrictions:
+
+```python
+client = UnitycatalogFunctionClient(
+    api_client=api_client,
+    execution_mode="local"
+)
+```
+
+<Note>
+  Local mode allows all imports and file system access but sacrifices isolation. Use sandbox mode for production environments.
+</Note>
+
+### Catalog and Schema Management
+
+Create catalogs and schemas before creating functions:
+
+```python
+# Create a catalog
+catalog_info = client.uc.create_catalog(
+    name="my_catalog",
+    comment="A catalog for GenAI functions",
+    properties={"environment": "production"}
+)
+
+# Create a schema
+schema_info = client.uc.create_schema(
+    name="my_schema",
+    catalog_name="my_catalog",
+    comment="Schema for agent tools",
+)
+```
+
+<Note>
+  If the catalog or schema already exists, you'll receive a warning and the existing metadata will be returned.
+</Note>
+
+## DatabricksFunctionClient
+
+The `DatabricksFunctionClient` is designed for interacting with Databricks-managed Unity Catalog.
+
+### Installation
+
+```bash
+pip install unitycatalog-ai[databricks]
+```
+
+<Note>
+  Python 3.10 or higher is required for Databricks serverless compute.
+</Note>
+
+### Prerequisites
+
+- **Serverless Compute**: Must be enabled in your Databricks workspace
+- **Authentication**: Configure Databricks CLI authentication
+- **Permissions**: Workspace-level privilege for managing UC functions
+
+### Basic Configuration
+
+```python
+from unitycatalog.ai.core.databricks import DatabricksFunctionClient
+
+# Client automatically uses Databricks CLI authentication
+client = DatabricksFunctionClient()
+```
+
+The client automatically detects authentication from:
+- Databricks CLI configuration (`~/.databrickscfg`)
+- Environment variables (`DATABRICKS_HOST`, `DATABRICKS_TOKEN`)
+- Databricks notebook environment
+
+### Execution Modes
+
+#### Serverless Mode (Default)
+
+Executes functions remotely via SQL Serverless endpoints:
+
+```python
+client = DatabricksFunctionClient(execution_mode="serverless")
+```
+
+**Benefits:**
+- Remote execution keeps your agent process free from computational burden
+- Enhanced security - no local code execution
+- Scalable compute resources
+- Production-ready
+
+#### Local Mode
+
+Executes functions locally for development and debugging:
+
+```python
+client = DatabricksFunctionClient(execution_mode="local")
+```
+
+**Configuration via Environment Variables:**
+
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `EXECUTOR_MAX_CPU_TIME_LIMIT` | 10 seconds | Maximum CPU execution time |
+| `EXECUTOR_MAX_MEMORY_LIMIT` | 100 MB | Maximum virtual memory |
+| `EXECUTOR_TIMEOUT` | 20 seconds | Maximum wall clock time |
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `UCAI_DATABRICKS_SESSION_RETRY_MAX_ATTEMPTS` | 5 | Max retry attempts for token refresh |
+| `UCAI_DATABRICKS_SERVERLESS_EXECUTION_RESULT_ROW_LIMIT` | 100 | Max rows returned from serverless execution |
+
+### Dependencies and Environments
+
+<Note>
+  Databricks runtime version 17 and higher supports dependency specification. Earlier versions will error if `dependencies` or `environment` are provided.
+</Note>
+
+Specify PyPI dependencies for your functions:
+
+```python
+def dep_check(x: str) -> str:
+    """
+    A function that uses external dependencies.
+
+    Args:
+        x: An input string
+    
+    Returns:
+        A string reporting the library version
+    """
+    import scrapy  # Must import within function
+    return scrapy.__version__
+
+# Create function with dependencies
+client.create_python_function(
+    func=dep_check,
+    catalog="my_catalog",
+    schema="my_schema",
+    replace=True,
+    dependencies=["scrapy==2.10.1"]
+)
+```
+
+## Advanced Client Usage
+
+### Asynchronous Operations
+
+The `UnitycatalogFunctionClient` supports async operations:
+
+```python
+import asyncio
+
+async def create_functions():
+    # Create function asynchronously
+    function_info = await client.create_python_function_async(
+        func=my_function,
+        catalog="my_catalog",
+        schema="my_schema"
+    )
+    
+    # Execute function asynchronously
+    result = await client.execute_function_async(
+        "my_catalog.my_schema.my_function",
+        parameters={"param": "value"}
+    )
+    return result
+
+# In Jupyter notebooks, use await directly
+result = await create_functions()
+
+# In scripts, use asyncio.run()
+result = asyncio.run(create_functions())
+```
+
+### Standalone Catalog/Schema Client
+
+Use the catalog and schema handler independently:
+
+```python
+from unitycatalog.ai.core.client import UnitycatalogClient
+from unitycatalog.client import ApiClient, Configuration
+
+config = Configuration(host="http://localhost:8080/api/2.1/unity-catalog")
+api_client = ApiClient(configuration=config)
+
+core_client = UnitycatalogClient(api_client=api_client)
+
+# Create catalog
+catalog_info = core_client.create_catalog(
+    name="test_catalog",
+    comment="Testing catalog",
+    properties={"key": "value"}
+)
+
+# Create schema
+schema_info = core_client.create_schema(
+    name="test_schema",
+    catalog_name="test_catalog",
+    comment="Testing schema"
+)
+```
+
+## Important Considerations
+
+### Security
+
+<Warning>
+  Function execution occurs locally (or remotely for Databricks serverless). Be aware of:
+  - Code being executed if you didn't author the function
+  - Potential file system access in local mode
+  - Network requests made by functions
+  - Run agents in isolated environments for arbitrary code execution scenarios
+</Warning>
+
+### Type Validation
+
+- All function parameters and return types must have type annotations
+- Generic collections (`list`, `dict`) must specify inner types: `list[int]`, `dict[str, float]`
+- The `Any` type is not supported
+- Default parameter values are preserved in UC function definitions
+
+### External Dependencies
+
+- Import external libraries **within the function body**
+- Ensure required packages are pre-installed in the execution environment
+- For OSS UC: Limited to core Python and installed packages
+- For Databricks: Specify dependencies in `create_python_function` (runtime 17+)
+
+### Function Overwriting
+
+<Warning>
+  Use `replace=True` carefully when creating functions. Overwriting can disrupt workflows that depend on existing function definitions.
+</Warning>
+
+```python
+# Overwrite existing function
+function_info = client.create_python_function(
+    func=updated_function,
+    catalog="my_catalog",
+    schema="my_schema",
+    replace=True  # Be careful with this!
+)
+```
+
+## Next Steps
+
+- [Function Calling](/ai/function-calling): Learn how to create and manage UC functions
+- [Model Registry](/ai/model-registry): Store and version ML models
+- [Framework Integrations](/ai/integrations/langchain): Integrate with LangChain, OpenAI, and more

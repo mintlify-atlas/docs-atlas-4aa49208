@@ -1,0 +1,607 @@
+---
+title: Registered Models
+description: Learn about Unity Catalog registered models and model versions for ML governance
+---
+
+## Overview
+
+**Registered models** are machine learning models stored within the Unity Catalog model registry. They provide a centralized way to manage, version, and govern ML models alongside your data assets.
+
+A registered model resides in the third layer of Unity Catalog's three-level namespace (`catalog.schema.model_name`), similar to tables and volumes, enabling unified governance across data and AI assets.
+
+## Registered Models vs Model Versions
+
+### Registered Models
+
+A **registered model** is a container that groups all versions of a single model:
+
+- Represents a logical ML model (e.g., "Customer Churn Predictor")
+- Contains metadata about the model's purpose and ownership
+- Has a unique name within its parent schema
+- Contains one or more model versions
+
+### Model Versions
+
+**Model versions** contain the actual model artifacts and files:
+
+- Represent a specific trained instance of the model
+- Have an integer version number (1, 2, 3, ...)
+- Store model files in cloud storage or external locations
+- Track model status (pending, ready, failed)
+- Include training run metadata and source information
+
+Think of it as:
+```
+Registered Model: "customer_churn_model" (logical model)
+├── Version 1 (trained 2024-01-01, baseline)
+├── Version 2 (trained 2024-02-01, improved features)
+└── Version 3 (trained 2024-03-01, current production)
+```
+
+## Registered Model Properties
+
+Each registered model has the following properties:
+
+<ParamField path="name" type="string" required>
+  Name of the model, relative to parent schema.
+</ParamField>
+
+<ParamField path="catalog_name" type="string" required>
+  Name of the parent catalog.
+</ParamField>
+
+<ParamField path="schema_name" type="string" required>
+  Name of the parent schema.
+</ParamField>
+
+<ParamField path="full_name" type="string">
+  Full three-level name: `catalog_name.schema_name.model_name`
+</ParamField>
+
+<ParamField path="storage_location" type="string">
+  Storage location on cloud where model version data files are stored.
+</ParamField>
+
+<ParamField path="comment" type="string">
+  User-provided description of the model.
+</ParamField>
+
+<ParamField path="owner" type="string">
+  Identifier of the user who owns the model.
+</ParamField>
+
+<ParamField path="created_at" type="integer">
+  Creation timestamp in milliseconds since Unix epoch.
+</ParamField>
+
+<ParamField path="updated_at" type="integer">
+  Last update timestamp in milliseconds since Unix epoch.
+</ParamField>
+
+<ParamField path="id" type="string">
+  Unique identifier for the registered model.
+</ParamField>
+
+## Model Version Properties
+
+Each model version has detailed metadata:
+
+<ParamField path="model_name" type="string" required>
+  Name of the parent registered model.
+</ParamField>
+
+<ParamField path="catalog_name" type="string" required>
+  Name of the catalog containing the model.
+</ParamField>
+
+<ParamField path="schema_name" type="string" required>
+  Name of the schema containing the model.
+</ParamField>
+
+<ParamField path="version" type="integer" required>
+  Integer version number used to reference this version in API requests.
+</ParamField>
+
+<ParamField path="source" type="string" required>
+  URI indicating the location of source artifacts (files) for this version.
+</ParamField>
+
+<ParamField path="run_id" type="string">
+  Run ID used by the ML package (e.g., MLflow) that generated the model.
+</ParamField>
+
+<ParamField path="status" type="enum">
+  Status: `PENDING_REGISTRATION`, `FAILED_REGISTRATION`, or `READY`
+</ParamField>
+
+<ParamField path="storage_location" type="string">
+  Storage location where model version data files are stored.
+</ParamField>
+
+<ParamField path="comment" type="string">
+  User-provided description for this version.
+</ParamField>
+
+<ParamField path="id" type="string">
+  Unique identifier for the model version.
+</ParamField>
+
+## Model Version Status
+
+Model versions progress through these states:
+
+<Card title="PENDING_REGISTRATION" icon="clock">
+  Client is still writing model artifacts to external storage. Model is not yet ready for use.
+</Card>
+
+<Card title="READY" icon="check">
+  Client has successfully written all artifacts. Model is ready for inference.
+</Card>
+
+<Card title="FAILED_REGISTRATION" icon="xmark">
+  Client failed to write all artifacts. Model version is invalid.
+</Card>
+
+## Managing Registered Models
+
+### List Registered Models
+
+List all models in a schema:
+
+```bash
+bin/uc registered_model list \
+  --catalog my_catalog \
+  --schema my_schema
+```
+
+List all models across all schemas:
+
+```bash
+bin/uc registered_model list
+```
+
+### Get Model Details
+
+Retrieve registered model information:
+
+```bash
+bin/uc registered_model get \
+  --full_name my_catalog.my_schema.my_model
+```
+
+Example output:
+
+```json
+{
+  "name": "customer_churn_model",
+  "catalog_name": "ml",
+  "schema_name": "production",
+  "full_name": "ml.production.customer_churn_model",
+  "comment": "Predicts customer churn probability",
+  "owner": "data-science-team",
+  "created_at": 1640000000000,
+  "storage_location": "s3://ml-models/customer-churn",
+  "id": "abc123-def456"
+}
+```
+
+### Create a Registered Model
+
+Create using MLflow (recommended approach):
+
+```python
+import mlflow
+
+# Set Unity Catalog as the registry
+mlflow.set_registry_uri("uc:http://localhost:8080")
+
+# Log and register model
+with mlflow.start_run():
+    # Train your model
+    model = train_model()
+    
+    # Log model to UC
+    mlflow.sklearn.log_model(
+        model,
+        "model",
+        registered_model_name="my_catalog.my_schema.my_model"
+    )
+```
+
+<Info>
+Registered models are typically created through ML frameworks like MLflow rather than the CLI. See the [MLflow documentation](https://mlflow.org/docs/latest/index.html) for details.
+</Info>
+
+### Update a Registered Model
+
+Update model name:
+
+```bash
+bin/uc registered_model update \
+  --full_name my_catalog.my_schema.old_model_name \
+  --new_name new_model_name
+```
+
+Update comment:
+
+```bash
+bin/uc registered_model update \
+  --full_name my_catalog.my_schema.my_model \
+  --comment "Updated: Now includes feature X"
+```
+
+Update both:
+
+```bash
+bin/uc registered_model update \
+  --full_name my_catalog.my_schema.my_model \
+  --new_name improved_model \
+  --comment "Renamed to reflect improved accuracy"
+```
+
+### Delete a Registered Model
+
+Delete a model (must delete all versions first):
+
+```bash
+bin/uc registered_model delete \
+  --full_name my_catalog.my_schema.my_model
+```
+
+Force delete with all versions:
+
+```bash
+bin/uc registered_model delete \
+  --full_name my_catalog.my_schema.my_model \
+  --force
+```
+
+<Note>
+By default, you must delete all model versions before deleting the registered model. Use `--force` to delete the model and all its versions in one operation.
+</Note>
+
+## Managing Model Versions
+
+### List Model Versions
+
+List all versions of a model:
+
+```bash
+bin/uc model_version list \
+  --full_name my_catalog.my_schema.my_model
+```
+
+This shows all versions with their status, source, and timestamps.
+
+### Get Model Version Details
+
+Get specific version metadata:
+
+```bash
+bin/uc model_version get \
+  --full_name my_catalog.my_schema.my_model \
+  --version 3
+```
+
+### Create a Model Version
+
+Create using MLflow:
+
+```python
+import mlflow
+
+mlflow.set_registry_uri("uc:http://localhost:8080")
+
+with mlflow.start_run() as run:
+    # Train new version
+    model = train_improved_model()
+    
+    # Log as new version
+    mlflow.sklearn.log_model(
+        model,
+        "model",
+        registered_model_name="my_catalog.my_schema.my_model"
+    )
+```
+
+Each time you log a model to an existing registered model name, MLflow creates a new version automatically.
+
+### Update Model Version
+
+Update version comment:
+
+```bash
+bin/uc model_version update \
+  --full_name my_catalog.my_schema.my_model \
+  --version 3 \
+  --comment "Production model - deployed 2024-03-01"
+```
+
+### Delete Model Version
+
+Delete a specific version:
+
+```bash
+bin/uc model_version delete \
+  --full_name my_catalog.my_schema.my_model \
+  --version 2
+```
+
+### Finalize Model Version
+
+Mark a version as ready:
+
+```bash
+bin/uc model_version finalize \
+  --full_name my_catalog.my_schema.my_model \
+  --version 3
+```
+
+This transitions the version from `PENDING_REGISTRATION` to `READY` status.
+
+## Model URI Format
+
+Model versions are referenced using Unity Catalog's model URI format:
+
+```
+models:/{catalog_name}.{schema_name}.{model_name}/{version}
+```
+
+Examples:
+```
+models:/ml.production.customer_churn_model/3
+models:/analytics.ml_models.demand_forecast/1
+```
+
+Use this format in MLflow to load models:
+
+```python
+import mlflow
+
+model = mlflow.sklearn.load_model(
+    "models:/ml.production.customer_churn_model/3"
+)
+
+predictions = model.predict(data)
+```
+
+## Use Cases
+
+### Production ML Models
+
+Organize production models by use case:
+
+```bash
+# Customer models
+ml.production.customer_churn_model
+ml.production.customer_lifetime_value
+ml.production.customer_segmentation
+
+# Product models  
+ml.production.demand_forecast
+ml.production.price_optimization
+ml.production.recommendation_engine
+```
+
+### Model Development Lifecycle
+
+Separate development and production:
+
+```bash
+# Development schema
+ml.dev.experimental_model_v1
+ml.dev.experimental_model_v2
+
+# Staging schema
+ml.staging.customer_model
+ml.staging.sales_forecast
+
+# Production schema
+ml.production.customer_model
+ml.production.sales_forecast
+```
+
+### Team Organization
+
+Organize by team or domain:
+
+```bash
+# Data science team
+analytics.ds_team.churn_predictor
+analytics.ds_team.sentiment_analyzer
+
+# ML engineering team
+analytics.ml_eng.feature_embeddings
+analytics.ml_eng.anomaly_detector
+```
+
+### A/B Testing Models
+
+Manage multiple model variants:
+
+```bash
+# Create registered model
+ml.experiments.recommendation_model
+
+# Different versions for A/B testing
+# Version 1: Collaborative filtering
+# Version 2: Content-based
+# Version 3: Hybrid approach
+```
+
+## Model Artifacts and Storage
+
+Model versions store artifacts in cloud storage:
+
+### Storage Location
+
+The `storage_location` specifies where model files are stored:
+
+```
+s3://ml-models/customer-churn/version-3/
+├── model.pkl
+├── requirements.txt
+├── MLmodel
+└── conda.yaml
+```
+
+### Temporary Credentials
+
+Unity Catalog provides temporary credentials for model access:
+
+```bash
+POST /api/2.1/unity-catalog/temporary-model-version-credentials
+{
+  "catalog_name": "ml",
+  "schema_name": "production",
+  "model_name": "customer_churn_model",
+  "version": 3,
+  "operation": "READ_MODEL_VERSION"
+}
+```
+
+Returns temporary AWS/Azure/GCP credentials for reading model files.
+
+## Integration with MLflow
+
+Unity Catalog integrates seamlessly with MLflow:
+
+### Setup MLflow Client
+
+```python
+import mlflow
+
+# Point MLflow to Unity Catalog
+mlflow.set_registry_uri("uc:http://localhost:8080")
+mlflow.set_tracking_uri("http://localhost:5000")
+```
+
+### Register Model
+
+```python
+with mlflow.start_run():
+    # Log parameters
+    mlflow.log_param("max_depth", 10)
+    mlflow.log_param("learning_rate", 0.01)
+    
+    # Train model
+    model = train_model()
+    
+    # Log metrics
+    mlflow.log_metric("accuracy", 0.95)
+    mlflow.log_metric("f1_score", 0.93)
+    
+    # Register in Unity Catalog
+    mlflow.sklearn.log_model(
+        model,
+        "model",
+        registered_model_name="ml.production.my_model"
+    )
+```
+
+### Load and Use Model
+
+```python
+# Load specific version
+model = mlflow.sklearn.load_model(
+    "models:/ml.production.my_model/3"
+)
+
+# Make predictions
+predictions = model.predict(X_test)
+```
+
+### Transition Versions
+
+```python
+from mlflow.tracking import MlflowClient
+
+client = MlflowClient()
+
+# Promote model to production
+client.transition_model_version_stage(
+    name="ml.production.my_model",
+    version=3,
+    stage="Production"
+)
+```
+
+## Best Practices
+
+### Naming Conventions
+
+- Use lowercase with underscores: `customer_churn_model`
+- Include model type: `recommendation_engine`, `fraud_detector`
+- Be descriptive: `customer_lifetime_value_predictor` vs `model_1`
+- Avoid version numbers in names (use actual versions instead)
+
+### Version Management
+
+- Create new versions for significant changes
+- Use version comments to document changes
+- Track training metrics for each version
+- Maintain at least 2-3 recent versions
+- Archive old versions that are no longer needed
+
+### Documentation
+
+- Add comprehensive comments to registered models
+- Document model purpose and use cases
+- Specify expected input features and formats
+- Note model performance metrics
+- Include contact information for model owners
+
+### Organization
+
+**By Environment:**
+```
+ml.dev.*      # Development models
+ml.staging.*  # Staging/UAT models  
+ml.prod.*     # Production models
+```
+
+**By Domain:**
+```
+marketing.models.*
+finance.models.*
+operations.models.*
+```
+
+**By Type:**
+```
+ml.classification.*
+ml.regression.*
+ml.clustering.*
+ml.llm.*
+```
+
+### Access Control
+
+- Grant `CREATE MODEL` privilege for model registration
+- Grant `EXECUTE` privilege for model inference
+- Limit production model write access
+- Use separate schemas for dev/staging/prod
+- Audit model access and usage
+
+### Model Lifecycle
+
+1. **Development**: Create in dev schema, iterate on versions
+2. **Testing**: Promote to staging schema, validate performance
+3. **Production**: Deploy to production schema with proper governance
+4. **Monitoring**: Track model performance and drift
+5. **Retirement**: Archive or delete obsolete versions
+
+### Storage Management
+
+- Configure appropriate storage locations for models
+- Use cloud storage for scalability and durability
+- Implement lifecycle policies for old versions
+- Monitor storage costs and usage
+- Back up critical production models
+
+## Related Resources
+
+- [Tables](/concepts/tables) - Store training and feature data
+- [Volumes](/concepts/volumes) - Store large model artifacts
+- [Functions](/concepts/functions) - Deploy models as UDFs
+- [MLflow Documentation](https://mlflow.org/docs/latest/index.html) - Complete MLflow integration guide

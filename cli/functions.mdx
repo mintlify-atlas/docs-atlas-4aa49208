@@ -1,0 +1,439 @@
+---
+title: 'Function Management'
+description: 'Manage Unity Catalog functions using the CLI'
+---
+
+## Overview
+
+Functions in Unity Catalog allow you to register and govern reusable code logic, including Python and SQL functions. Use the `bin/uc function` commands to create, list, invoke, and delete functions.
+
+<Note>
+Functions use a **full name** format: `catalog_name.schema_name.function_name`
+</Note>
+
+## List Functions
+
+List all functions within a schema:
+
+```bash
+bin/uc function list \
+  --catalog <catalog> \
+  --schema <schema> \
+  [--max_results <max_results>]
+```
+
+<ParamField path="--catalog" type="string" required>
+  The name of the catalog.
+</ParamField>
+
+<ParamField path="--schema" type="string" required>
+  The name of the schema.
+</ParamField>
+
+<ParamField path="--max_results" type="integer">
+  Optional. Maximum number of results to return.
+</ParamField>
+
+### Example
+
+```bash
+bin/uc function list --catalog unity --schema default
+```
+
+## Get Function Details
+
+Retrieve detailed metadata about a specific function:
+
+```bash
+bin/uc function get --full_name <full_name>
+```
+
+<ParamField path="--full_name" type="string" required>
+  The full name of the function in the format `catalog_name.schema_name.function_name`.
+</ParamField>
+
+### Example
+
+```bash
+bin/uc function get --full_name my_catalog.my_schema.my_function
+```
+
+## Create a Function
+
+Create a new function in a schema:
+
+```bash
+bin/uc function create \
+  --full_name <full_name> \
+  --input_params <input_params> \
+  --data_type <data_type> \
+  --def <definition> \
+  [--comment <comment>] \
+  [--language <language>]
+```
+
+<ParamField path="--full_name" type="string" required>
+  The full name of the function in the format `catalog_name.schema_name.function_name`.
+</ParamField>
+
+<ParamField path="--input_params" type="string" required>
+  The input parameters to the function in SQL-like format: `"param_name param_data_type"`.
+  
+  Multiple parameters should be separated by commas (e.g., `"param1 INT, param2 STRING"`).
+</ParamField>
+
+<ParamField path="--data_type" type="string" required>
+  The return data type of the function.
+  
+  Can be:
+  - A type name: `INT`, `DOUBLE`, `BOOLEAN`, `STRING`, `DATE`, etc.
+  - `TABLE_TYPE` if this is a table-valued function
+</ParamField>
+
+<ParamField path="--def" type="string" required>
+  The function definition/implementation.
+  
+  - For Python functions: The function body with logic and return statement
+  - For SQL functions: A valid SQL statement
+</ParamField>
+
+<ParamField path="--comment" type="string">
+  Optional. A description of the function.
+</ParamField>
+
+<ParamField path="--language" type="string">
+  Optional. The language of the function. Default is `PYTHON`.
+  
+  Supported values:
+  - `PYTHON` (default)
+  - `SQL`
+</ParamField>
+
+### Examples
+
+<CodeGroup>
+```bash Simple Python function
+bin/uc function create \
+  --full_name my_catalog.my_schema.my_function \
+  --input_params "param1 INT, param2 INT" \
+  --data_type INT \
+  --def "return param1 + param2" \
+  --comment "Sum Function"
+```
+
+```bash Python function with string
+bin/uc function create \
+  --full_name analytics.utils.format_name \
+  --input_params "first_name STRING, last_name STRING" \
+  --data_type STRING \
+  --def "return f'{last_name}, {first_name}'.upper()" \
+  --comment "Formats name as 'LAST, FIRST'"
+```
+
+```bash Complex calculation
+bin/uc function create \
+  --full_name finance.calcs.compound_interest \
+  --input_params "principal DOUBLE, rate DOUBLE, years INT" \
+  --data_type DOUBLE \
+  --def "return principal * ((1 + rate) ** years)" \
+  --comment "Calculate compound interest"
+```
+
+```bash Boolean logic
+bin/uc function create \
+  --full_name validation.checks.is_valid_age \
+  --input_params "age INT" \
+  --data_type BOOLEAN \
+  --def "return age >= 18 and age <= 120" \
+  --comment "Validates age range"
+```
+</CodeGroup>
+
+## Invoke a Function
+
+Call a function and get the result:
+
+```bash
+bin/uc function call \
+  --full_name <full_name> \
+  --input_params <input_params>
+```
+
+<ParamField path="--full_name" type="string" required>
+  The full name of the function in the format `catalog_name.schema_name.function_name`.
+</ParamField>
+
+<ParamField path="--input_params" type="string" required>
+  The values of input parameters separated by commas (e.g., `"value1,value2"`).
+  
+  The values should match the order and types defined in the function signature.
+</ParamField>
+
+<Info>
+This is an experimental feature that only supports Python functions with primitive types as input parameters. Functions are executed using the Python engine at `etc/data/function/python_engine.py`.
+</Info>
+
+### Examples
+
+<CodeGroup>
+```bash Call sum function
+bin/uc function call \
+  --full_name my_catalog.my_schema.my_function \
+  --input_params "1,2"
+```
+
+```bash Call with strings
+bin/uc function call \
+  --full_name analytics.utils.format_name \
+  --input_params "John,Doe"
+```
+
+```bash Call with mixed types
+bin/uc function call \
+  --full_name finance.calcs.compound_interest \
+  --input_params "1000.0,0.05,10"
+```
+</CodeGroup>
+
+## Delete a Function
+
+Delete an existing function:
+
+```bash
+bin/uc function delete --full_name <full_name>
+```
+
+<ParamField path="--full_name" type="string" required>
+  The full name of the function to delete in the format `catalog_name.schema_name.function_name`.
+</ParamField>
+
+### Example
+
+```bash
+bin/uc function delete --full_name my_catalog.my_schema.my_function
+```
+
+## Complete Workflow Example
+
+Here's a complete example of the function lifecycle:
+
+<Steps>
+  <Step title="Create catalog and schema">
+    ```bash
+    bin/uc catalog create --name analytics --comment "Analytics functions"
+    bin/uc schema create --catalog analytics --name utils
+    ```
+  </Step>
+  
+  <Step title="Create a simple function">
+    ```bash
+    bin/uc function create \
+      --full_name analytics.utils.sum_two_numbers \
+      --input_params "a INT, b INT" \
+      --data_type INT \
+      --def "return a + b" \
+      --comment "Adds two integers"
+    ```
+  </Step>
+  
+  <Step title="Create another function">
+    ```bash
+    bin/uc function create \
+      --full_name analytics.utils.is_positive \
+      --input_params "num INT" \
+      --data_type BOOLEAN \
+      --def "return num > 0" \
+      --comment "Checks if number is positive"
+    ```
+  </Step>
+  
+  <Step title="List all functions">
+    ```bash
+    bin/uc function list --catalog analytics --schema utils
+    ```
+  </Step>
+  
+  <Step title="Get function details">
+    ```bash
+    bin/uc function get --full_name analytics.utils.sum_two_numbers
+    ```
+  </Step>
+  
+  <Step title="Invoke the functions">
+    ```bash
+    # Call sum function
+    bin/uc function call \
+      --full_name analytics.utils.sum_two_numbers \
+      --input_params "10,20"
+    
+    # Call boolean function
+    bin/uc function call \
+      --full_name analytics.utils.is_positive \
+      --input_params "5"
+    ```
+  </Step>
+  
+  <Step title="Clean up">
+    ```bash
+    bin/uc function delete --full_name analytics.utils.sum_two_numbers
+    bin/uc function delete --full_name analytics.utils.is_positive
+    ```
+  </Step>
+</Steps>
+
+## Function Examples by Use Case
+
+<AccordionGroup>
+  <Accordion title="Data Validation">
+    Create functions to validate data quality:
+    
+    ```bash
+    # Email validation
+    bin/uc function create \
+      --full_name validation.checks.is_valid_email \
+      --input_params "email STRING" \
+      --data_type BOOLEAN \
+      --def "import re; return bool(re.match(r'^[\w\.-]+@[\w\.-]+\.\w+$', email))" \
+      --comment "Validates email format"
+    ```
+  </Accordion>
+  
+  <Accordion title="Text Processing">
+    String manipulation and formatting:
+    
+    ```bash
+    # Title case converter
+    bin/uc function create \
+      --full_name text.utils.to_title_case \
+      --input_params "text STRING" \
+      --data_type STRING \
+      --def "return text.title()" \
+      --comment "Converts text to title case"
+    ```
+  </Accordion>
+  
+  <Accordion title="Mathematical Operations">
+    Business calculations and formulas:
+    
+    ```bash
+    # Calculate discount
+    bin/uc function create \
+      --full_name finance.calcs.apply_discount \
+      --input_params "price DOUBLE, discount_pct DOUBLE" \
+      --data_type DOUBLE \
+      --def "return price * (1 - discount_pct / 100)" \
+      --comment "Applies percentage discount to price"
+    ```
+  </Accordion>
+  
+  <Accordion title="Date/Time Operations">
+    Date calculations and formatting:
+    
+    ```bash
+    # Calculate age
+    bin/uc function create \
+      --full_name datetime.utils.calculate_age \
+      --input_params "birth_year INT, current_year INT" \
+      --data_type INT \
+      --def "return current_year - birth_year" \
+      --comment "Calculates age from birth year"
+    ```
+  </Accordion>
+  
+  <Accordion title="Business Logic">
+    Domain-specific calculations:
+    
+    ```bash
+    # Tax calculation
+    bin/uc function create \
+      --full_name accounting.tax.calculate_sales_tax \
+      --input_params "amount DOUBLE, tax_rate DOUBLE" \
+      --data_type DOUBLE \
+      --def "return amount * tax_rate" \
+      --comment "Calculates sales tax amount"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Supported Data Types
+
+### Input Parameters and Return Types
+
+| Type | Description | Example |
+|------|-------------|----------|
+| `INT` | Integer values | `42`, `-10` |
+| `LONG` | Large integer values | `1234567890` |
+| `DOUBLE` | Floating point values | `3.14`, `2.718` |
+| `BOOLEAN` | True/false | `true`, `false` |
+| `STRING` | Text values | `"hello"` |
+| `DATE` | Date values | `2024-01-15` |
+| `TIMESTAMP` | Date and time | `2024-01-15 10:30:00` |
+| `TABLE_TYPE` | Table-valued function | Returns a table |
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Function Design">
+    - Keep functions simple and focused on a single task
+    - Use descriptive function names that indicate purpose
+    - Document parameters and return values in comments
+    - Consider error handling in function definitions
+  </Accordion>
+  
+  <Accordion title="Parameter Naming">
+    - Use clear, descriptive parameter names
+    - Follow consistent naming conventions (snake_case)
+    - Order parameters logically (most important first)
+    - Keep parameter lists concise (4-5 max recommended)
+  </Accordion>
+  
+  <Accordion title="Function Organization">
+    - Group related functions in the same schema
+    - Use schemas to categorize by domain (finance, validation, utils)
+    - Create separate catalogs for different environments
+    - Document function dependencies and relationships
+  </Accordion>
+  
+  <Accordion title="Testing">
+    - Test functions with various input combinations
+    - Verify edge cases and boundary conditions
+    - Document expected behavior in function comments
+    - Use function call command for validation
+  </Accordion>
+  
+  <Accordion title="Python Functions">
+    - Keep function bodies simple and readable
+    - Import modules within the function if needed
+    - Use type-appropriate operations for parameters
+    - Consider performance for frequently called functions
+  </Accordion>
+</AccordionGroup>
+
+## Limitations
+
+<Warning>
+**Current Limitations:**
+
+- Function invocation (`bin/uc function call`) is experimental
+- Only Python functions with primitive types are supported for invocation
+- Complex data types (arrays, structs) have limited support
+- No built-in debugging or step-through capabilities
+- Functions run in the Python engine environment
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Model Management" icon="brain" href="/cli/models">
+    Register and manage ML models
+  </Card>
+  <Card title="Functions Guide" icon="book" href="/usage/functions">
+    Deep dive into functions
+  </Card>
+  <Card title="Table Management" icon="table" href="/cli/tables">
+    Work with tables
+  </Card>
+  <Card title="Schema Management" icon="folder-tree" href="/cli/schemas">
+    Back to schema management
+  </Card>
+</CardGroup>

@@ -1,0 +1,284 @@
+---
+title: 'Catalog Management'
+description: 'Manage Unity Catalog catalogs using the CLI'
+---
+
+## Overview
+
+Catalogs are the top-level containers in Unity Catalog that organize your data assets. Use the `bin/uc catalog` commands to create, list, update, and delete catalogs.
+
+<Note>
+All examples assume you're running against a local Unity Catalog instance at `http://localhost:8080`. If authentication is enabled, add `--auth_token $TOKEN` to all commands.
+</Note>
+
+## List Catalogs
+
+List all catalogs in your Unity Catalog instance:
+
+```bash
+bin/uc catalog list [--max_results <max_results>]
+```
+
+<ParamField path="--max_results" type="integer">
+  Optional. Maximum number of results to return.
+</ParamField>
+
+### Example
+
+```bash
+bin/uc catalog list
+```
+
+**Output:**
+
+```console
+┌─────┬────────────┬──────────┬─────┬─────────────┬──────────┬──────────┬──────────┬────────────────────────────────────┐
+│NAME │  COMMENT   │PROPERTIES│OWNER│ CREATED_AT  │CREATED_BY│UPDATED_AT│UPDATED_BY│                 ID                 │
+├─────┼────────────┼──────────┼─────┼─────────────┼──────────┼──────────┼──────────┼────────────────────────────────────┤
+│unity│Main catalog│{}        │null │1721238005334│null      │null      │null      │f029b870-9468-4f10-badc-630b41e5690d│
+└─────┴────────────┴──────────┴─────┴─────────────┴──────────┴──────────┴──────────┴────────────────────────────────────┘
+```
+
+## Get Catalog Details
+
+Retrieve detailed information about a specific catalog:
+
+```bash
+bin/uc catalog get --name <name>
+```
+
+<ParamField path="--name" type="string" required>
+  The name of the catalog.
+</ParamField>
+
+### Example
+
+```bash
+bin/uc catalog get --name unity
+```
+
+**Output:**
+
+```console
+┌─────────────────────┬──────────────────────────────────────────┐
+│         KEY         │                  VALUE                   │
+├─────────────────────┼──────────────────────────────────────────┤
+│NAME                 │unity                                     │
+├─────────────────────┼──────────────────────────────────────────┤
+│COMMENT              │Main catalog                              │
+├─────────────────────┼──────────────────────────────────────────┤
+│PROPERTIES           │{}                                        │
+├─────────────────────┼──────────────────────────────────────────┤
+│OWNER                │null                                      │
+├─────────────────────┼──────────────────────────────────────────┤
+│CREATED_AT           │1721238005334                             │
+├─────────────────────┼──────────────────────────────────────────┤
+│CREATED_BY           │null                                      │
+├─────────────────────┼──────────────────────────────────────────┤
+│UPDATED_AT           │null                                      │
+├─────────────────────┼──────────────────────────────────────────┤
+│UPDATED_BY           │null                                      │
+├─────────────────────┼──────────────────────────────────────────┤
+│ID                   │f029b870-9468-4f10-badc-630b41e5690d      │
+└─────────────────────┴──────────────────────────────────────────┘
+```
+
+## Create a Catalog
+
+Create a new catalog in Unity Catalog:
+
+```bash
+bin/uc catalog create \
+  --name <name> \
+  [--comment <comment>] \
+  [--properties <properties>]
+```
+
+<ParamField path="--name" type="string" required>
+  The name of the catalog to create.
+</ParamField>
+
+<ParamField path="--comment" type="string">
+  Optional. A description of the catalog.
+</ParamField>
+
+<ParamField path="--properties" type="json">
+  Optional. Properties of the catalog in JSON format (e.g., `'{"key1": "value1", "key2": "value2"}'`). Use single quotes around the JSON and double quotes inside.
+</ParamField>
+
+### Example
+
+<CodeGroup>
+```bash Basic catalog
+bin/uc catalog create --name my_catalog
+```
+
+```bash With comment
+bin/uc catalog create \
+  --name my_catalog \
+  --comment "My First Catalog"
+```
+
+```bash With properties
+bin/uc catalog create \
+  --name my_catalog \
+  --comment "My First Catalog" \
+  --properties '{"key1": "value1", "key2": "value2"}'
+```
+</CodeGroup>
+
+## Update a Catalog
+
+Update an existing catalog's metadata:
+
+```bash
+bin/uc catalog update \
+  --name <name> \
+  [--new_name <new_name>] \
+  [--comment <comment>] \
+  [--properties <properties>]
+```
+
+<ParamField path="--name" type="string" required>
+  The name of the existing catalog to update.
+</ParamField>
+
+<ParamField path="--new_name" type="string">
+  Optional. The new name for the catalog (to rename it).
+</ParamField>
+
+<ParamField path="--comment" type="string">
+  Optional. The new description for the catalog.
+</ParamField>
+
+<ParamField path="--properties" type="json">
+  Optional. The new properties for the catalog in JSON format.
+</ParamField>
+
+<Warning>
+At least one of the optional parameters (`--new_name`, `--comment`, or `--properties`) must be specified.
+</Warning>
+
+### Example
+
+<CodeGroup>
+```bash Update comment
+bin/uc catalog update \
+  --name my_catalog \
+  --comment "Updated Catalog Description"
+```
+
+```bash Rename catalog
+bin/uc catalog update \
+  --name my_catalog \
+  --new_name my_updated_catalog
+```
+
+```bash Update all fields
+bin/uc catalog update \
+  --name my_catalog \
+  --new_name my_updated_catalog \
+  --comment "Updated Catalog" \
+  --properties '{"updated_key": "updated_value"}'
+```
+</CodeGroup>
+
+## Delete a Catalog
+
+Delete an existing catalog:
+
+```bash
+bin/uc catalog delete --name <name>
+```
+
+<ParamField path="--name" type="string" required>
+  The name of the catalog to delete.
+</ParamField>
+
+### Example
+
+```bash
+bin/uc catalog delete --name my_catalog
+```
+
+<Warning>
+Deleting a catalog will also delete all schemas, tables, volumes, and other assets within it. This operation cannot be undone.
+</Warning>
+
+## Complete Workflow Example
+
+Here's a complete example showing the catalog lifecycle:
+
+<Steps>
+  <Step title="Create a catalog">
+    ```bash
+    bin/uc catalog create \
+      --name analytics \
+      --comment "Analytics data catalog" \
+      --properties '{"team": "data-engineering", "env": "production"}'
+    ```
+  </Step>
+  
+  <Step title="Verify it was created">
+    ```bash
+    bin/uc catalog get --name analytics
+    ```
+  </Step>
+  
+  <Step title="Update the catalog">
+    ```bash
+    bin/uc catalog update \
+      --name analytics \
+      --comment "Updated analytics catalog" \
+      --properties '{"team": "data-engineering", "env": "production", "version": "2.0"}'
+    ```
+  </Step>
+  
+  <Step title="List all catalogs">
+    ```bash
+    bin/uc catalog list
+    ```
+  </Step>
+  
+  <Step title="Delete the catalog">
+    ```bash
+    bin/uc catalog delete --name analytics
+    ```
+  </Step>
+</Steps>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Naming Conventions">
+    - Use lowercase names for consistency
+    - Use underscores to separate words (e.g., `sales_analytics`)
+    - Keep names concise but descriptive
+    - Avoid special characters except underscores
+  </Accordion>
+  
+  <Accordion title="Using Properties">
+    - Store metadata like team ownership, environment, and versioning
+    - Use consistent property keys across all catalogs
+    - Document your property schema for team reference
+    - Properties are useful for automation and governance
+  </Accordion>
+  
+  <Accordion title="Organizing Catalogs">
+    - Create separate catalogs for different business domains
+    - Consider environment-specific catalogs (dev, staging, prod)
+    - Use catalogs to implement data security boundaries
+    - Keep the number of top-level catalogs manageable
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Schema Management" icon="folder-tree" href="/cli/schemas">
+    Create schemas within your catalogs
+  </Card>
+  <Card title="Table Management" icon="table" href="/cli/tables">
+    Add tables to your schemas
+  </Card>
+</CardGroup>

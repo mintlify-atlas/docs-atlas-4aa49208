@@ -130,6 +130,7 @@
             "group": "REST API",
             "pages": [
               "api/rest/authentication",
+              "api/rest/metastore",
               "api/rest/catalogs",
               "api/rest/schemas",
               "api/rest/tables",
@@ -137,7 +138,9 @@
               "api/rest/functions",
               "api/rest/models",
               "api/rest/permissions",
-              "api/rest/credentials"
+              "api/rest/credentials",
+              "api/rest/storage-credentials",
+              "api/rest/external-locations"
             ]
           }
         ]

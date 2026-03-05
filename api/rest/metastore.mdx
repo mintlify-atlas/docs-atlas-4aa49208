@@ -1,0 +1,259 @@
+---
+title: 'Metastore API'
+description: 'Query and manage Unity Catalog metastore information'
+---
+
+# Metastore API
+
+The metastore is the top-level container for all Unity Catalog metadata. Each Unity Catalog instance has one metastore that stores information about catalogs, schemas, tables, and other assets.
+
+## Endpoints
+
+### Get Metastore Summary
+
+Gets information about the metastore hosted by this Unity Catalog service.
+
+```http
+GET /api/2.1/unity-catalog/metastore_summary
+```
+
+#### Response
+
+<ResponseField name="metastore_id" type="string">
+  Unique identifier for the metastore.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Name of the metastore.
+</ResponseField>
+
+<ResponseField name="storage_root" type="string">
+  Root storage location for managed tables and volumes.
+</ResponseField>
+
+<ResponseField name="cloud" type="string">
+  Cloud provider where the metastore is hosted. One of: `aws`, `azure`, `gcp`.
+</ResponseField>
+
+<ResponseField name="region" type="string">
+  Cloud region where the metastore is hosted.
+</ResponseField>
+
+<ResponseField name="owner" type="string">
+  Username of the metastore owner.
+</ResponseField>
+
+<ResponseField name="created_at" type="integer">
+  Time when the metastore was created, in epoch milliseconds.
+</ResponseField>
+
+<ResponseField name="created_by" type="string">
+  Username of the user who created the metastore.
+</ResponseField>
+
+<ResponseField name="updated_at" type="integer">
+  Time when the metastore was last updated, in epoch milliseconds.
+</ResponseField>
+
+<ResponseField name="updated_by" type="string">
+  Username of the user who last updated the metastore.
+</ResponseField>
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/2.1/unity-catalog/metastore_summary
+```
+
+```python Python
+from unitycatalog.client import MetastoresApi
+
+metastores_api = MetastoresApi(api_client)
+summary = await metastores_api.summary()
+
+print(f"Metastore ID: {summary.metastore_id}")
+print(f"Name: {summary.name}")
+print(f"Storage Root: {summary.storage_root}")
+print(f"Cloud: {summary.cloud}")
+print(f"Region: {summary.region}")
+```
+
+```java Java
+import io.unitycatalog.client.ApiClient;
+import io.unitycatalog.client.api.MetastoresApi;
+import io.unitycatalog.client.model.GetMetastoreSummaryResponse;
+
+ApiClient client = new ApiClient();
+client.setBasePath("http://localhost:8080/api/2.1/unity-catalog");
+
+MetastoresApi api = new MetastoresApi(client);
+GetMetastoreSummaryResponse summary = api.summary();
+
+System.out.println("Metastore ID: " + summary.getMetastoreId());
+System.out.println("Name: " + summary.getName());
+System.out.println("Storage Root: " + summary.getStorageRoot());
+```
+</CodeGroup>
+
+#### Example Response
+
+```json
+{
+  "metastore_id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "unity-catalog-metastore",
+  "storage_root": "s3://unity-catalog-storage/",
+  "cloud": "aws",
+  "region": "us-west-2",
+  "owner": "admin@example.com",
+  "created_at": 1640000000000,
+  "created_by": "system",
+  "updated_at": 1640000000000,
+  "updated_by": "system"
+}
+```
+
+---
+
+## Understanding the Metastore
+
+### Hierarchy
+
+The metastore sits at the top of Unity Catalog's three-level namespace:
+
+```
+Metastore
+├── Catalog 1
+│   ├── Schema 1.1
+│   │   ├── Table 1.1.1
+│   │   ├── Volume 1.1.2
+│   │   └── Function 1.1.3
+│   └── Schema 1.2
+├── Catalog 2
+│   └── Schema 2.1
+└── System Objects
+    ├── Credentials
+    ├── External Locations
+    └── Users/Permissions
+```
+
+### Storage Root
+
+The storage root defines where Unity Catalog stores managed data:
+
+- **Managed tables**: `{storage_root}/catalogs/{catalog}/schemas/{schema}/tables/{table}/`
+- **Managed volumes**: `{storage_root}/catalogs/{catalog}/schemas/{schema}/volumes/{volume}/`
+- **Model artifacts**: `{storage_root}/catalogs/{catalog}/schemas/{schema}/models/{model}/versions/{version}/`
+
+### Metastore Admin
+
+The metastore owner has full administrative privileges:
+
+- Create and manage catalogs
+- Create and manage storage credentials
+- Create and manage external locations
+- Grant and revoke permissions
+- Manage users and service principals
+
+---
+
+## Use Cases
+
+### Check Metastore Configuration
+
+Before creating catalogs, verify the metastore is properly configured:
+
+```python
+summary = await metastores_api.summary()
+
+if not summary.storage_root:
+    raise ValueError("Metastore storage root not configured")
+
+if summary.cloud == "aws" and not summary.region:
+    raise ValueError("AWS region not set for metastore")
+
+print(f"Metastore ready: {summary.name} in {summary.region}")
+```
+
+### Display Metastore Information
+
+Show metastore details in a CLI or UI:
+
+```python
+def display_metastore_info():
+    summary = await metastores_api.summary()
+    
+    print("Unity Catalog Metastore")
+    print("=" * 40)
+    print(f"ID:            {summary.metastore_id}")
+    print(f"Name:          {summary.name}")
+    print(f"Cloud:         {summary.cloud.upper()}")
+    print(f"Region:        {summary.region}")
+    print(f"Storage Root:  {summary.storage_root}")
+    print(f"Owner:         {summary.owner}")
+    print(f"Created:       {summary.created_at}")
+```
+
+### Validate Storage Access
+
+Ensure the metastore storage root is accessible:
+
+```python
+import boto3
+from urllib.parse import urlparse
+
+summary = await metastores_api.summary()
+storage_url = urlparse(summary.storage_root)
+
+if storage_url.scheme == "s3":
+    s3 = boto3.client('s3')
+    bucket = storage_url.netloc
+    
+    try:
+        s3.head_bucket(Bucket=bucket)
+        print(f"✓ Storage root {bucket} is accessible")
+    except Exception as e:
+        print(f"✗ Cannot access storage root: {e}")
+```
+
+---
+
+## Configuration
+
+### Server Configuration
+
+The metastore is configured in `server.properties`:
+
+```properties
+# Metastore configuration
+metastore.id=550e8400-e29b-41d4-a716-446655440000
+metastore.name=unity-catalog
+metastore.storage_root=s3://my-uc-storage/
+metastore.cloud=aws
+metastore.region=us-west-2
+```
+
+### Docker Configuration
+
+When running in Docker, set via environment variables:
+
+```yaml
+services:
+  unitycatalog:
+    environment:
+      - METASTORE_ID=550e8400-e29b-41d4-a716-446655440000
+      - METASTORE_NAME=unity-catalog
+      - METASTORE_STORAGE_ROOT=s3://my-uc-storage/
+      - METASTORE_CLOUD=aws
+      - METASTORE_REGION=us-west-2
+```
+
+---
+
+## Related Resources
+
+- [Catalogs API](/api/rest/catalogs): Create catalogs within the metastore
+- [Storage Credentials API](/api/rest/storage-credentials): Manage credentials for the metastore
+- [External Locations API](/api/rest/external-locations): Define external storage locations
+- [Permissions API](/api/rest/permissions): Control metastore-level permissions

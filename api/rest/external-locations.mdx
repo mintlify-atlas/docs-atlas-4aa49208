@@ -1,0 +1,319 @@
+---
+title: 'External Locations API'
+description: 'Manage external storage locations in Unity Catalog'
+---
+
+# External Locations API
+
+External locations define paths to external storage (S3, Azure Blob Storage, GCS) that Unity Catalog can access. They reference storage credentials and provide a way to organize and govern access to external data.
+
+## Endpoints
+
+### Create External Location
+
+Creates a new external location entry in the metastore.
+
+```http
+POST /api/2.1/unity-catalog/external-locations
+```
+
+<Note>
+  The caller must be a metastore admin to create external locations.
+</Note>
+
+#### Request Body
+
+<ParamField body="name" type="string" required>
+  Name of the external location. Must be unique within the metastore.
+</ParamField>
+
+<ParamField body="url" type="string" required>
+  Path URL in cloud storage. Examples:
+  - S3: `s3://bucket-name/path`
+  - Azure: `abfss://container@account.dfs.core.windows.net/path`
+  - GCS: `gs://bucket-name/path`
+</ParamField>
+
+<ParamField body="credential_name" type="string" required>
+  Name of the storage credential to use with this location.
+</ParamField>
+
+<ParamField body="comment" type="string">
+  User-provided description.
+</ParamField>
+
+<ParamField body="skip_validation" type="boolean">
+  Whether to skip validation of the storage credential. Default is false.
+</ParamField>
+
+<ParamField body="read_only" type="boolean">
+  Whether the external location is read-only. Default is false.
+</ParamField>
+
+#### Response
+
+Returns an `ExternalLocationInfo` object with the created external location details.
+
+<ResponseField name="name" type="string">
+  Name of the external location.
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  Path URL in cloud storage.
+</ResponseField>
+
+<ResponseField name="credential_name" type="string">
+  Name of the storage credential used.
+</ResponseField>
+
+<ResponseField name="owner" type="string">
+  Username of the external location owner.
+</ResponseField>
+
+<ResponseField name="created_at" type="integer">
+  Time when the external location was created, in epoch milliseconds.
+</ResponseField>
+
+<ResponseField name="created_by" type="string">
+  Username of the creator.
+</ResponseField>
+
+#### Example
+
+<CodeGroup>
+```bash cURL
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "my-s3-location",
+    "url": "s3://my-bucket/data",
+    "credential_name": "my-aws-credential",
+    "comment": "Production data location"
+  }' \
+  http://localhost:8080/api/2.1/unity-catalog/external-locations
+```
+
+```python Python
+from unitycatalog.client import CreateExternalLocation
+
+create_req = CreateExternalLocation(
+    name="my-s3-location",
+    url="s3://my-bucket/data",
+    credential_name="my-aws-credential",
+    comment="Production data location"
+)
+
+external_location = await external_locations_api.create_external_location(create_req)
+print(f"Created: {external_location.name}")
+```
+</CodeGroup>
+
+---
+
+### List External Locations
+
+Gets an array of external locations from the metastore.
+
+```http
+GET /api/2.1/unity-catalog/external-locations
+```
+
+#### Query Parameters
+
+<ParamField query="max_results" type="integer">
+  Maximum number of external locations to return (max 1000).
+</ParamField>
+
+<ParamField query="page_token" type="string">
+  Opaque pagination token for the next page.
+</ParamField>
+
+#### Response
+
+<ResponseField name="external_locations" type="array">
+  Array of `ExternalLocationInfo` objects.
+</ResponseField>
+
+<ResponseField name="next_page_token" type="string">
+  Opaque token for pagination.
+</ResponseField>
+
+#### Example
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/2.1/unity-catalog/external-locations
+```
+
+---
+
+### Get External Location
+
+Gets an external location from the metastore.
+
+```http
+GET /api/2.1/unity-catalog/external-locations/{name}
+```
+
+#### Path Parameters
+
+<ParamField path="name" type="string" required>
+  Name of the external location.
+</ParamField>
+
+#### Example
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/2.1/unity-catalog/external-locations/my-s3-location
+```
+
+---
+
+### Update External Location
+
+Updates an external location in the metastore.
+
+```http
+PATCH /api/2.1/unity-catalog/external-locations/{name}
+```
+
+<Note>
+  The caller must be the owner of the external location or a metastore admin.
+</Note>
+
+#### Path Parameters
+
+<ParamField path="name" type="string" required>
+  Name of the external location to update.
+</ParamField>
+
+#### Request Body
+
+<ParamField body="url" type="string">
+  New URL for the external location.
+</ParamField>
+
+<ParamField body="credential_name" type="string">
+  New credential name to use.
+</ParamField>
+
+<ParamField body="comment" type="string">
+  New comment.
+</ParamField>
+
+<ParamField body="owner" type="string">
+  New owner username.
+</ParamField>
+
+<ParamField body="read_only" type="boolean">
+  Whether the location should be read-only.
+</ParamField>
+
+#### Example
+
+```bash
+curl -X PATCH \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "comment": "Updated production data location",
+    "read_only": true
+  }' \
+  http://localhost:8080/api/2.1/unity-catalog/external-locations/my-s3-location
+```
+
+---
+
+### Delete External Location
+
+Deletes an external location from the metastore.
+
+```http
+DELETE /api/2.1/unity-catalog/external-locations/{name}
+```
+
+<Warning>
+  The caller must be a metastore admin or the owner of the external location.
+</Warning>
+
+#### Path Parameters
+
+<ParamField path="name" type="string" required>
+  Name of the external location to delete.
+</ParamField>
+
+#### Query Parameters
+
+<ParamField query="force" type="boolean">
+  Force deletion even if there are dependent external tables or mounts.
+</ParamField>
+
+#### Example
+
+```bash
+curl -X DELETE \
+  -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/2.1/unity-catalog/external-locations/my-s3-location
+```
+
+---
+
+## Use Cases
+
+### Organize Storage by Environment
+
+Create separate external locations for dev, staging, and production:
+
+```python
+# Development location
+dev_location = CreateExternalLocation(
+    name="data-dev",
+    url="s3://company-data-dev/",
+    credential_name="dev-aws-cred"
+)
+
+# Production location
+prod_location = CreateExternalLocation(
+    name="data-prod",
+    url="s3://company-data-prod/",
+    credential_name="prod-aws-cred",
+    read_only=True  # Make prod read-only for safety
+)
+```
+
+### Multi-Cloud Setup
+
+Define external locations across different cloud providers:
+
+```python
+# AWS location
+aws_location = CreateExternalLocation(
+    name="aws-lake",
+    url="s3://company-datalake/",
+    credential_name="aws-credential"
+)
+
+# Azure location
+azure_location = CreateExternalLocation(
+    name="azure-lake",
+    url="abfss://data@company.dfs.core.windows.net/",
+    credential_name="azure-credential"
+)
+
+# GCP location
+gcp_location = CreateExternalLocation(
+    name="gcp-lake",
+    url="gs://company-datalake/",
+    credential_name="gcp-credential"
+)
+```
+
+---
+
+## Related Resources
+
+- [Storage Credentials API](/api/rest/storage-credentials): Manage credentials used by external locations
+- [Permissions API](/api/rest/permissions): Control access to external locations
+- [Tables API](/api/rest/tables): Create external tables using external locations

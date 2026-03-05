@@ -1,0 +1,369 @@
+---
+title: 'Quickstart Guide'
+description: 'Get started with Unity Catalog in minutes'
+---
+
+# Quickstart Guide
+
+This quickstart shows how to run Unity Catalog locally, which is great for experimentation and testing. You'll learn how to start the server, explore catalogs with the CLI, and query tables with DuckDB.
+
+## Prerequisites
+
+Before you begin, ensure you have:
+
+- **Java 17** installed on your machine
+- **Git** for cloning the repository
+- **DuckDB** (optional, for querying examples)
+
+Verify your Java installation:
+
+```bash
+java --version
+```
+
+You should see output similar to:
+
+```console
+openjdk 17.0.12 2024-07-16
+OpenJDK Runtime Environment (build 17.0.12+0)
+OpenJDK 64-Bit Server VM (build 17.0.12+0, mixed mode)
+```
+
+---
+
+## Getting Started
+
+<Steps>
+  <Step title="Clone the Repository">
+    Clone the Unity Catalog GitHub repository:
+
+    ```bash
+    git clone https://github.com/unitycatalog/unitycatalog.git
+    cd unitycatalog
+    ```
+
+    <Note>
+      To run Unity Catalog in Docker, refer to the [Docker guide](/server/docker).
+    </Note>
+  </Step>
+
+  <Step title="Build the Project">
+    Compile the project using sbt:
+
+    ```bash
+    build/sbt package
+    ```
+
+    This will compile the Unity Catalog server and CLI tools.
+  </Step>
+
+  <Step title="Start the UC Server">
+    In your terminal, start the Unity Catalog server:
+
+    ```bash
+    bin/start-uc-server
+    ```
+
+    You should see the Unity Catalog banner:
+
+    ```console
+    ################################################################### 
+    #  _    _       _ _            _____      _        _              #
+    # | |  | |     (_) |          / ____|    | |      | |             #
+    # | |  | |_ __  _| |_ _   _  | |     __ _| |_ __ _| | ___   __ _  #
+    # | |  | | '_ \| | __| | | | | |    / _` | __/ _` | |/ _ \ / _` | #
+    # | |__| | | | | | |_| |_| | | |___| (_| | || (_| | | (_) | (_| | #
+    #  \____/|_| |_|_|\__|\__, |  \_____\__,_|\__\__,_|_|\___/ \__, | #
+    #                      __/ |                                __/ | #
+    #                     |___/               v0.2.0           |___/  #
+    ###################################################################
+    ```
+
+    The server will start on `http://localhost:8080` with sample data pre-loaded.
+  </Step>
+
+  <Step title="Verify Server is Running">
+    Open a new terminal window and list the available catalogs:
+
+    ```bash
+    bin/uc catalog list
+    ```
+
+    You should see a catalog named `unity`:
+
+    ```console
+    ┌─────┬────────────┬──────────┬─────┬─────────────┐
+    │NAME │  COMMENT   │PROPERTIES│OWNER│ CREATED_AT  │
+    ├─────┼────────────┼──────────┼─────┼─────────────┤
+    │unity│Main catalog│{}        │null │1721238005334│
+    └─────┴────────────┴──────────┴─────┴─────────────┘
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Explore with the CLI
+
+### List Tables
+
+Unity Catalog comes pre-populated with sample tables. Let's explore them:
+
+```bash
+bin/uc table list --catalog unity --schema default
+```
+
+Output:
+
+```console
+┌─────────────────┬──────────────┬────────────────────────────────────┐
+│      NAME       │ CATALOG_NAME │              TABLE_ID              │
+├─────────────────┼──────────────┼────────────────────────────────────┤
+│marksheet        │unity         │c389adfa-5c8f-497b-8f70-26c2cca4976d│
+├─────────────────┼──────────────┼────────────────────────────────────┤
+│marksheet_uniform│unity         │9a73eb46-adf0-4457-9bd8-9ab491865e0d│
+├─────────────────┼──────────────┼────────────────────────────────────┤
+│numbers          │unity         │32025924-be53-4d67-ac39-501a86046c01│
+├─────────────────┼──────────────┼────────────────────────────────────┤
+│user_countries   │unity         │26ed93b5-9a18-4726-8ae8-c89dfcfea069│
+└─────────────────┴──────────────┴────────────────────────────────────┘
+```
+
+### Get Table Details
+
+View metadata for a specific table:
+
+```bash
+bin/uc table get --full_name unity.default.numbers
+```
+
+<Accordion title="Example Output">
+  ```console
+  ┌──────────────────────┬───────────────────────────────────────────┐
+  │         KEY          │                  VALUE                    │
+  ├──────────────────────┼───────────────────────────────────────────┤
+  │NAME                  │numbers                                    │
+  ├──────────────────────┼───────────────────────────────────────────┤
+  │CATALOG_NAME          │unity                                      │
+  ├──────────────────────┼───────────────────────────────────────────┤
+  │SCHEMA_NAME           │default                                    │
+  ├──────────────────────┼───────────────────────────────────────────┤
+  │TABLE_TYPE            │EXTERNAL                                   │
+  ├──────────────────────┼───────────────────────────────────────────┤
+  │DATA_SOURCE_FORMAT    │DELTA                                      │
+  └──────────────────────┴───────────────────────────────────────────┘
+  ```
+</Accordion>
+
+### Read Table Data
+
+Read the contents of a Delta table:
+
+```bash
+bin/uc table read --full_name unity.default.numbers
+```
+
+Output:
+
+```console
+┌───────────────────┬────────────────────┐
+│as_int(integer)    │as_double(double)   │
+├───────────────────┼────────────────────┤
+│564                │188.75535598441473  │
+├───────────────────┼────────────────────┤
+│755                │883.6105633023361   │
+├───────────────────┼────────────────────┤
+│958                │509.3712727285101   │
+└───────────────────┴────────────────────┘
+```
+
+---
+
+## Query with DuckDB
+
+DuckDB provides powerful SQL querying capabilities for Unity Catalog tables.
+
+### Setup DuckDB
+
+<Steps>
+  <Step title="Install DuckDB">
+    [Download and install DuckDB](https://duckdb.org/docs/installation/) (version 1.0 or later).
+  </Step>
+
+  <Step title="Install Extensions">
+    Start DuckDB and install the required extensions:
+
+    ```sql
+    INSTALL uc_catalog FROM core_nightly;
+    LOAD uc_catalog;
+    INSTALL delta;
+    LOAD delta;
+    ```
+
+    <Note>
+      If you've installed these extensions before, run `UPDATE EXTENSIONS` and restart DuckDB.
+    </Note>
+  </Step>
+
+  <Step title="Connect to Unity Catalog">
+    Create a connection to your local Unity Catalog server:
+
+    ```sql
+    CREATE SECRET (
+      TYPE UC,
+      TOKEN 'not-used',
+      ENDPOINT 'http://127.0.0.1:8080',
+      AWS_REGION 'us-east-2'
+    );
+    ```
+
+    Attach the Unity catalog:
+
+    ```sql
+    ATTACH 'unity' AS unity (TYPE UC_CATALOG);
+    ```
+  </Step>
+
+  <Step title="Query Tables">
+    You can now query Unity Catalog tables with SQL:
+
+    ```sql
+    -- Show all tables
+    SHOW ALL TABLES;
+
+    -- Query a table
+    SELECT * FROM unity.default.numbers;
+
+    -- Run aggregations
+    SELECT 
+      AVG(as_int) as avg_int,
+      MAX(as_double) as max_double
+    FROM unity.default.numbers;
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Create Your First Table
+
+Let's create a new table using the CLI:
+
+```bash
+bin/uc table create --full_name unity.default.my_table \\
+  --columns "id INT, name STRING, value DOUBLE" \\
+  --storage_location /tmp/uc/my_table
+```
+
+<Note>
+  The table is created but initially empty. Use `bin/uc table write --full_name unity.default.my_table` to append sample data.
+</Note>
+
+Verify the table was created:
+
+```bash
+bin/uc table list --catalog unity --schema default
+```
+
+---
+
+## Understanding Unity Catalog Structure
+
+Unity Catalog organizes data in a three-level namespace:
+
+<CardGroup cols={3}>
+  <Card title="Catalog" icon="database">
+    Top-level container for organizing data by project, team, or environment
+  </Card>
+  <Card title="Schema" icon="folder">
+    Second-level container for grouping related tables, volumes, and functions
+  </Card>
+  <Card title="Assets" icon="table">
+    Tables, volumes, functions, and models stored in schemas
+  </Card>
+</CardGroup>
+
+Example hierarchy:
+
+```
+unity (catalog)
+└── default (schema)
+    ├── numbers (table)
+    ├── marksheet (table)
+    └── user_countries (table)
+```
+
+---
+
+## Next Steps
+
+Now that you have Unity Catalog running, explore more features:
+
+<CardGroup cols={2}>
+  <Card title="Core Concepts" icon="book" href="/concepts/catalogs">
+    Learn about catalogs, schemas, tables, volumes, functions, and models
+  </Card>
+  <Card title="CLI Usage" icon="terminal" href="/cli/overview">
+    Master the Unity Catalog CLI for managing assets
+  </Card>
+  <Card title="Integrations" icon="plug" href="/integrations/overview">
+    Connect Spark, Trino, and other compute engines
+  </Card>
+  <Card title="AI & ML" icon="brain" href="/ai/introduction">
+    Use Unity Catalog for GenAI function calling and model registry
+  </Card>
+</CardGroup>
+
+---
+
+## Troubleshooting
+
+### Server Won't Start
+
+<AccordionGroup>
+  <Accordion title="Java version mismatch">
+    Ensure you're using Java 17. Check with `java --version`. Update `JAVA_HOME` if needed:
+
+    ```bash
+    export JAVA_HOME=$(/usr/libexec/java_home -v 17)
+    ```
+  </Accordion>
+
+  <Accordion title="Port already in use">
+    If port 8080 is occupied, stop the conflicting service or configure Unity Catalog to use a different port.
+  </Accordion>
+
+  <Accordion title="Build errors">
+    Try cleaning and rebuilding:
+
+    ```bash
+    build/sbt clean package
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### DuckDB Connection Issues
+
+<AccordionGroup>
+  <Accordion title="Extension not found">
+    Make sure you're using DuckDB 1.0 or later and run:
+
+    ```sql
+    UPDATE EXTENSIONS;
+    ```
+
+    Then restart DuckDB and reinstall extensions.
+  </Accordion>
+
+  <Accordion title="Cannot connect to Unity Catalog">
+    Verify the server is running on `http://127.0.0.1:8080` and accessible. Check firewall settings if needed.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Additional Resources
+
+- [Architecture Overview](/architecture): Understand how Unity Catalog works
+- [Server Configuration](/server/configuration): Configure advanced server settings
+- [API Reference](/api/overview): Explore the REST API and SDKs

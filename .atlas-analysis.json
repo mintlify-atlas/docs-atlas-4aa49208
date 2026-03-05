@@ -1,0 +1,202 @@
+{
+  "projectType": "data-platform",
+  "projectName": "Unity Catalog",
+  "projectDescription": "Open, multimodal catalog for data and AI that provides unified governance for tables, files, functions, and AI models",
+  "theme": "sequoia",
+  "primaryColor": "#e0ae16",
+  "lightColor": "#193658",
+  "darkColor": "#f49bc9",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "architecture"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/catalogs",
+              "concepts/schemas",
+              "concepts/tables",
+              "concepts/volumes",
+              "concepts/functions",
+              "concepts/models"
+            ]
+          },
+          {
+            "group": "CLI Usage",
+            "pages": [
+              "cli/overview",
+              "cli/catalogs",
+              "cli/schemas",
+              "cli/tables",
+              "cli/volumes",
+              "cli/functions",
+              "cli/models"
+            ]
+          },
+          {
+            "group": "Server",
+            "pages": [
+              "server/installation",
+              "server/configuration",
+              "server/deployment",
+              "server/docker",
+              "server/authentication"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/overview",
+              "integrations/duckdb",
+              "integrations/spark",
+              "integrations/trino",
+              "integrations/daft",
+              "integrations/xtable"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "AI & ML",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "ai/introduction",
+              "ai/quickstart"
+            ]
+          },
+          {
+            "group": "Client & SDK",
+            "pages": [
+              "ai/client-setup",
+              "ai/function-calling",
+              "ai/model-registry"
+            ]
+          },
+          {
+            "group": "Framework Integrations",
+            "pages": [
+              "ai/integrations/langchain",
+              "ai/integrations/llamaindex",
+              "ai/integrations/openai",
+              "ai/integrations/anthropic",
+              "ai/integrations/dspy",
+              "ai/integrations/autogen",
+              "ai/integrations/crewai"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "SDKs",
+            "pages": [
+              "api/overview",
+              "api/python-sdk",
+              "api/java-sdk"
+            ]
+          },
+          {
+            "group": "REST API",
+            "pages": [
+              "api/rest/authentication",
+              "api/rest/catalogs",
+              "api/rest/schemas",
+              "api/rest/tables",
+              "api/rest/volumes",
+              "api/rest/functions",
+              "api/rest/models",
+              "api/rest/permissions",
+              "api/rest/credentials"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Developers",
+        "groups": [
+          {
+            "group": "Contributing",
+            "pages": [
+              "developers/contributing",
+              "developers/building",
+              "developers/testing",
+              "developers/code-style"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "developers/roadmap",
+              "developers/changelog"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Multimodal catalog supporting tables, files, functions, and AI models",
+    "Multi-format support (Delta Lake, Iceberg, Hudi, Parquet, JSON, CSV)",
+    "Multi-engine compatibility (DuckDB, Spark, Trino, and more)",
+    "Three-level namespace hierarchy (catalog.schema.asset)",
+    "Unified governance and access control for data and AI assets",
+    "OpenAPI specification with REST API",
+    "Python and Java SDKs",
+    "CLI for catalog management",
+    "AI function calling integration with LangChain, LlamaIndex, OpenAI, etc.",
+    "ML model registry for versioned model storage",
+    "Temporary credentials for secure storage access",
+    "Apache Hive metastore API compatibility",
+    "Apache Iceberg REST catalog API compatibility"
+  ],
+  "publicApiSurface": [
+    "POST /catalogs - Create catalog",
+    "GET /catalogs - List catalogs",
+    "GET /catalogs/{name} - Get catalog",
+    "PATCH /catalogs/{name} - Update catalog",
+    "DELETE /catalogs/{name} - Delete catalog",
+    "POST /schemas - Create schema",
+    "GET /schemas - List schemas",
+    "GET /schemas/{full_name} - Get schema",
+    "PATCH /schemas/{full_name} - Update schema",
+    "DELETE /schemas/{full_name} - Delete schema",
+    "POST /tables - Create table",
+    "GET /tables - List tables",
+    "GET /tables/{full_name} - Get table",
+    "DELETE /tables/{full_name} - Delete table",
+    "POST /volumes - Create volume",
+    "GET /volumes - List volumes",
+    "GET /volumes/{full_name} - Get volume",
+    "PATCH /volumes/{full_name} - Update volume",
+    "DELETE /volumes/{full_name} - Delete volume",
+    "POST /functions - Create function",
+    "GET /functions - List functions",
+    "GET /functions/{name} - Get function",
+    "PATCH /functions/{name} - Update function",
+    "DELETE /functions/{name} - Delete function",
+    "POST /registered-models - Create registered model",
+    "GET /registered-models - List models",
+    "GET /registered-models/{full_name} - Get model",
+    "PATCH /registered-models/{full_name} - Update model",
+    "DELETE /registered-models/{full_name} - Delete model",
+    "POST /model-versions - Create model version",
+    "GET /model-versions - List model versions",
+    "POST /temporary-table-credentials - Generate table credentials",
+    "POST /temporary-volume-credentials - Generate volume credentials",
+    "GET /permissions/{securable_type}/{full_name} - Get permissions",
+    "PATCH /permissions/{securable_type}/{full_name} - Update permissions"
+  ]
+}

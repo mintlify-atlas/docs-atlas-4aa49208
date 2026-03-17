@@ -18,6 +18,16 @@
       "href": "https://github.com/unitycatalog/unitycatalog"
     }
   },
+  "fonts": {
+    "heading": {
+      "family": "Plus Jakarta Sans",
+      "weight": 700
+    },
+    "body": {
+      "family": "Plus Jakarta Sans",
+      "weight": 400
+    }
+  },
   "footer": {
     "socials": {
       "github": "https://github.com/unitycatalog/unitycatalog",

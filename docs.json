@@ -1,16 +1,16 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "name": "Unity Catalog",
-  "theme": "sequoia",
+  "theme": "luma",
   "colors": {
-    "primary": "#e0ae16",
-    "light": "#193658",
-    "dark": "#f49bc9"
+    "primary": "#FFBC00",
+    "light": "#FFBC00",
+    "dark": "#FFBC00"
   },
-  "favicon": "https://media.brand.dev/11c905de-5149-4d03-8a9a-fa557bdd8ca9.jpg",
+  "favicon": "/favicon.png",
   "logo": {
-    "light": "https://media.brand.dev/45c9710b-4979-4f0e-87ad-cca26af2d8ea.svg",
-    "dark": "https://media.brand.dev/0aee6b6f-6c1b-4740-9364-17e8a794537b.svg"
+    "light": "/light.svg",
+    "dark": "/dark.svg"
   },
   "navbar": {
     "primary": {
@@ -27,15 +27,15 @@
   "navigation": {
     "tabs": [
       {
+        "tab": "Home",
+        "pages": ["index"]
+      },
+      {
         "tab": "Documentation",
         "groups": [
           {
             "group": "Getting Started",
-            "pages": [
-              "introduction",
-              "quickstart",
-              "architecture"
-            ]
+            "pages": ["introduction", "quickstart", "architecture"]
           },
           {
             "group": "Core Concepts",
@@ -88,10 +88,7 @@
         "groups": [
           {
             "group": "Overview",
-            "pages": [
-              "ai/introduction",
-              "ai/quickstart"
-            ]
+            "pages": ["ai/introduction", "ai/quickstart"]
           },
           {
             "group": "Client & SDK",
@@ -120,11 +117,7 @@
         "groups": [
           {
             "group": "SDKs",
-            "pages": [
-              "api/overview",
-              "api/python-sdk",
-              "api/java-sdk"
-            ]
+            "pages": ["api/overview", "api/python-sdk", "api/java-sdk"]
           },
           {
             "group": "REST API",
@@ -159,13 +152,15 @@
           },
           {
             "group": "Reference",
-            "pages": [
-              "developers/roadmap",
-              "developers/changelog"
-            ]
+            "pages": ["developers/roadmap", "developers/changelog"]
           }
         ]
       }
     ]
+  },
+  "seo": {
+    "metatags": {
+      "robots": "noindex"
+    }
   }
 }
